@@ -6,9 +6,9 @@ import { Zap, Bot, BarChart2, Trophy, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const TABS = [
-  { href: "/swap",        label: "Swap",        icon: Zap       },
-  { href: "/agent",       label: "AI",          icon: Bot       },
   { href: "/stats",       label: "Stats",       icon: BarChart2 },
+  { href: "/agent",       label: "AI",          icon: Bot       },
+  { href: "/swap",        label: "Swap",        icon: Zap       },
   { href: "/leaderboard", label: "Leaderboard", icon: Trophy    },
   { href: "/profile",     label: "Profile",     icon: User      },
 ];
