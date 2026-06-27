@@ -81,8 +81,6 @@ html, body {
   font-family: 'Inter', sans-serif;
   -webkit-font-smoothing: antialiased;
   transition: background-color 0.3s ease, color 0.2s ease;
-  /* Prevent iOS bounce scroll */
-  overscroll-behavior: none;
 }
 
 /* ═══════════════════════════════
