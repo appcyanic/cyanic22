@@ -7,14 +7,8 @@ import { Send, User, Loader2, Zap, Sparkles, CreditCard, ExternalLink } from "lu
 import { cn } from "@/lib/utils";
 
 const SUGGESTIONS = [
-  { icon: "🔄", text: "What's the best route for ETH → USDC?" },
-  { icon: "📊", text: "Analyze my portfolio" },
-  { icon: "🔥", text: "What are today's trending tokens on Base?" },
-  { icon: "⛽", text: "When is the best time to swap for low gas?" },
-  { icon: "💡", text: "What's the difference between cbETH and stETH?" },
-  { icon: "🎯", text: "How does Aerodrome compare to Uniswap?" },
-  { icon: "💰", text: "How do I earn yield on Base?" },
-  { icon: "🛡️", text: "What are the main DeFi risks I should know?" },
+  { icon: "🔄", text: "Swap 5 USDC to ETH" },
+  { icon: "📊", text: "What's the best DeFi strategy on Base right now?" },
 ];
 
 export function AgentChat() {
@@ -136,17 +130,17 @@ export function AgentChat() {
               Ask anything about swaps, tokens, and DeFi on Base.
             </p>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-lg">
+            <div className="flex flex-col gap-2 w-full max-w-sm">
               {SUGGESTIONS.map((s, i) => (
                 <button
                   key={i}
                   onClick={() => fillSuggestion(s.text)}
-                  className="flex items-center gap-2 px-3 py-3 rounded-xl border border-border
+                  className="flex items-center gap-3 px-4 py-3 rounded-xl border border-border
                              bg-bg-secondary hover:border-base-blue/40 hover:bg-base-blue/5
-                             text-sm text-left transition-all group min-h-[52px]"
+                             text-left transition-all group min-h-[52px]"
                 >
-                  <span className="text-base flex-shrink-0">{s.icon}</span>
-                  <span className="text-text-secondary group-hover:text-text-primary transition-colors text-xs">
+                  <span className="text-xl flex-shrink-0">{s.icon}</span>
+                  <span className="text-text-secondary group-hover:text-text-primary transition-colors text-sm font-medium">
                     {s.text}
                   </span>
                 </button>
