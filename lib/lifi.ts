@@ -69,7 +69,6 @@ export async function fetchBridgeRoutes(params: BridgeRouteParams): Promise<Rout
       allowSwitchChain:   false,
       integrator:         process.env.NEXT_PUBLIC_LIFI_INTEGRATOR ?? "baseora",
       // fee removed — requires portal.li.fi registration to collect integrator fees
-      allowedBridges:     ALLOWED_BRIDGES,
     },
   };
 
