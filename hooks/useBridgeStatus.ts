@@ -30,7 +30,7 @@ export function useBridgeStatus({
         const s = result.status as StatusResult;
         setStatus(s);
 
-        const destTx = (result as Record<string, unknown>).receiving as { txHash?: string } | undefined;
+        const destTx = (result as unknown as { receiving?: { txHash?: string } }).receiving;
         if (destTx?.txHash) setDestinationTx(destTx.txHash);
 
         if (s === "DONE" || s === "FAILED") {
