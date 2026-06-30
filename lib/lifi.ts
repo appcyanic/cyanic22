@@ -76,7 +76,7 @@ export async function fetchBridgeRoutes(params: BridgeRouteParams): Promise<Rout
   return response.routes ?? [];
 }
 
-export async function fetchBridgeStatus(req: StatusRequest) {
+export async function fetchBridgeStatus(req: GetStatusRequest) {
   const client = getLifiClient();
   return getStatus(client, req);
 }
