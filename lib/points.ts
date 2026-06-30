@@ -1,10 +1,13 @@
 import { XP_REWARDS, getLevelFromXP, type Level } from "@/types/reward";
 
 export function calculateSwapXP(amountUSD: number, isFirstSwap: boolean): number {
-  let xp = 0;
+  let xp = XP_REWARDS.PER_SWAP; // 50 XP per swap — no minimum balance requirement
   if (isFirstSwap) xp += XP_REWARDS.FIRST_SWAP;
-  xp += Math.floor(amountUSD / 100) * XP_REWARDS.PER_100_USD;
   return xp;
+}
+
+export function calculateAgentSwapXP(): number {
+  return XP_REWARDS.AGENT_SWAP; // 250 XP for swaps initiated via AI agent
 }
 
 export function calculateStreakXP(streakDays: number): number {

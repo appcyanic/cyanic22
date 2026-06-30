@@ -2,14 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Zap, Bot, Trophy, User } from "lucide-react";
+import { Zap, Bot, Trophy, User, ArrowLeftRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const TABS = [
-  { href: "/swap",        label: "Swap",   icon: Zap    },
-  { href: "/agent",       label: "AI",     icon: Bot    },
-  { href: "/leaderboard", label: "Ranks",  icon: Trophy },
-  { href: "/profile",     label: "Profile",icon: User   },
+  { href: "/swap",        label: "Swap",   icon: Zap            },
+  { href: "/bridge",      label: "Bridge", icon: ArrowLeftRight },
+  { href: "/agent",       label: "AI",     icon: Bot            },
+  { href: "/leaderboard", label: "Ranks",  icon: Trophy         },
+  { href: "/profile",     label: "Profile",icon: User           },
 ];
 
 export function MobileNav() {
@@ -37,11 +38,9 @@ export function MobileNav() {
                 isActive ? "text-base-blue" : "text-text-muted hover:text-text-secondary"
               )}
             >
-              {/* Active pill indicator at top */}
               {isActive && (
                 <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full bg-base-blue" />
               )}
-
               <div className={cn(
                 "p-1.5 rounded-xl transition-all",
                 isActive && "bg-base-blue/15"

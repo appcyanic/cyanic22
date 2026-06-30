@@ -15,15 +15,31 @@ import {
 } from "recharts";
 import { BarChart2, Users, TrendingUp, Zap } from "lucide-react";
 
-const MOCK_VOLUME_DATA = [
-  { date: "Mon", volume: 1200000 },
-  { date: "Tue", volume: 1850000 },
-  { date: "Wed", volume: 980000 },
-  { date: "Thu", volume: 2100000 },
-  { date: "Fri", volume: 1650000 },
-  { date: "Sat", volume: 1320000 },
-  { date: "Sun", volume: 1780000 },
-];
+const VOLUME_DATA: Record<"7d" | "30d" | "all", { date: string; volume: number }[]> = {
+  "7d": [
+    { date: "Mon", volume: 1200000 },
+    { date: "Tue", volume: 1850000 },
+    { date: "Wed", volume: 980000 },
+    { date: "Thu", volume: 2100000 },
+    { date: "Fri", volume: 1650000 },
+    { date: "Sat", volume: 1320000 },
+    { date: "Sun", volume: 1780000 },
+  ],
+  "30d": [
+    { date: "W1", volume: 8200000 },
+    { date: "W2", volume: 11400000 },
+    { date: "W3", volume: 9800000 },
+    { date: "W4", volume: 13200000 },
+  ],
+  "all": [
+    { date: "Jan", volume: 28000000 },
+    { date: "Feb", volume: 34000000 },
+    { date: "Mar", volume: 41000000 },
+    { date: "Apr", volume: 38000000 },
+    { date: "May", volume: 52000000 },
+    { date: "Jun", volume: 47000000 },
+  ],
+};
 
 const DEX_DISTRIBUTION = [
   { name: "Uniswap V3", value: 45, color: "#FF007A" },
@@ -43,8 +59,8 @@ const TOP_PAIRS = [
 
 export default function StatsPage() {
   const [period, setPeriod] = useState<"7d" | "30d" | "all">("7d");
-
-  const totalVolume = MOCK_VOLUME_DATA.reduce((s, d) => s + d.volume, 0);
+  const volumeData = VOLUME_DATA[period];
+  const totalVolume = volumeData.reduce((s, d) => s + d.volume, 0);
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10">
@@ -155,7 +171,7 @@ export default function StatsPage() {
             </div>
           </div>
           <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={MOCK_VOLUME_DATA} barSize={24}>
+            <BarChart data={volumeData} barSize={24}>
               <XAxis
                 dataKey="date"
                 axisLine={false}

@@ -56,12 +56,12 @@ export interface LeaderboardEntry {
 }
 
 export const LEVEL_THRESHOLDS: Record<Level, number> = {
-  Bronze: 0,
-  Silver: 1000,
-  Gold: 5000,
-  Platinum: 15000,
-  Diamond: 50000,
-  Elite: 150000,
+  Bronze:   0,
+  Silver:   1000,
+  Gold:     5000,
+  Platinum: 10000,
+  Diamond:  25000,
+  Elite:    50000,
 };
 
 export const LEVEL_COLORS: Record<Level, string> = {
@@ -74,23 +74,27 @@ export const LEVEL_COLORS: Record<Level, string> = {
 };
 
 export const XP_REWARDS = {
-  FIRST_SWAP: 500,
-  PER_100_USD: 10,
-  DAILY_SWAP: 50,
-  WEEK_STREAK: 500,
-  REFERRAL: 1000,
-  REFERRED_BONUS: 200,
-  AGENT_QUERY: 5,
-  MULTI_SWAP: 25,
+  FIRST_SWAP:       500,   // ilk swap bonus (bir kere)
+  PER_SWAP:         50,    // her swap (min bakiye şartı yok)
+  AGENT_SWAP:       250,   // AI agent üzerinden yapılan swap
+  DAILY_SWAP:       50,    // günlük swap streak bonusu
+  WEEK_STREAK:      500,   // 7 günlük streak
+  REFERRAL:         1000,  // davet edilen kişi swap yaparsa
+  REFERRED_BONUS:   200,   // davet edilenin ilk swap bonusu
+  X_FOLLOW:         1000,  // X hesabını takip etme
+  AGENT_QUERY:      5,     // AI agent sorgusu
+  MULTI_SWAP:       25,    // çoklu swap
   PROFILE_COMPLETE: 100,
+  // Eski alan — geriye uyumluluk için
+  PER_100_USD:      10,
 };
 
 export function getLevelFromXP(xp: number): Level {
-  if (xp >= 150000) return "Elite";
-  if (xp >= 50000) return "Diamond";
-  if (xp >= 15000) return "Platinum";
-  if (xp >= 5000) return "Gold";
-  if (xp >= 1000) return "Silver";
+  if (xp >= 50000) return "Elite";
+  if (xp >= 25000) return "Diamond";
+  if (xp >= 10000) return "Platinum";
+  if (xp >= 5000)  return "Gold";
+  if (xp >= 1000)  return "Silver";
   return "Bronze";
 }
 

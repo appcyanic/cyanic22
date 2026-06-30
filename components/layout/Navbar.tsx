@@ -12,6 +12,7 @@ import { Zap, Sun, Moon } from "lucide-react";
 
 const NAV_LINKS = [
   { href: "/swap",        label: "Swap" },
+  { href: "/bridge",      label: "Bridge" },
   { href: "/agent",       label: "AI Agent" },
   { href: "/stats",       label: "Stats" },
   { href: "/leaderboard", label: "Leaderboard" },

@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^0.0.50",
+    "@lifi/sdk": "^4.0.1",
     "@radix-ui/react-dialog": "^1.1.17",
     "@radix-ui/react-select": "^2.3.1",
     "@radix-ui/react-slider": "^1.4.1",

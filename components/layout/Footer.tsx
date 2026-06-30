@@ -19,6 +19,7 @@ export function Footer() {
           {/* Nav links */}
           <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-sm text-text-secondary">
             <Link href="/swap"        className="py-1 px-1 hover:text-text-primary transition-colors">Swap</Link>
+            <Link href="/bridge"      className="py-1 px-1 hover:text-text-primary transition-colors">Bridge</Link>
             <Link href="/agent"       className="py-1 px-1 hover:text-text-primary transition-colors">AI Agent</Link>
             <Link href="/stats"       className="py-1 px-1 hover:text-text-primary transition-colors">Stats</Link>
             <Link href="/leaderboard" className="py-1 px-1 hover:text-text-primary transition-colors">Leaderboard</Link>

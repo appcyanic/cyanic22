@@ -7,8 +7,7 @@ import { toast } from "sonner";
 import {
   Trophy, Zap, Info, Gift, Copy, CheckCircle2,
   Flame, Star, ExternalLink,
-} from "lucide-react";
-import { LeaderboardTable } from "@/components/leaderboard/LeaderboardTable";
+} from "lucide-react";import { LeaderboardTable } from "@/components/leaderboard/LeaderboardTable";
 import { LevelBadge }       from "@/components/leaderboard/RankBadge";
 import { ProgressBar }      from "@/components/rewards/ProgressBar";
 import { RewardCard }       from "@/components/rewards/RewardCard";
@@ -20,16 +19,15 @@ import { shortenAddress }   from "@/lib/utils";
 import {
   LEVEL_THRESHOLDS, XP_REWARDS, type Level,
 } from "@/types/reward";
-
 const ALL_LEVELS: Level[] = ["Bronze", "Silver", "Gold", "Platinum", "Diamond", "Elite"];
 
 const XP_SOURCES = [
-  { icon: "🔄", label: "Each Swap",    desc: "Per $100 traded",      xp: XP_REWARDS.PER_100_USD, color: "#0052FF" },
-  { icon: "📅", label: "Daily Swap",   desc: "Swap once/day",        xp: XP_REWARDS.DAILY_SWAP,  color: "#00C2FF" },
-  { icon: "🔥", label: "7-Day Streak", desc: "7 consecutive days",   xp: XP_REWARDS.WEEK_STREAK, color: "#FF6B35" },
-  { icon: "⚡", label: "First Swap",   desc: "One-time bonus",       xp: XP_REWARDS.FIRST_SWAP,  color: "#FFB547" },
-  { icon: "👥", label: "Referral",     desc: "Per friend who swaps", xp: XP_REWARDS.REFERRAL,    color: "#9B59B6" },
-  { icon: "🤖", label: "AI Agent",     desc: "Per conversation",     xp: XP_REWARDS.AGENT_QUERY, color: "#00C896" },
+  { icon: "🔄", label: "Each Swap",      desc: "Per swap, no minimum",     xp: XP_REWARDS.PER_SWAP,    color: "#0052FF" },
+  { icon: "🤖", label: "AI Agent Swap",  desc: "Swap via AI agent",        xp: XP_REWARDS.AGENT_SWAP,  color: "#00C896" },
+  { icon: "🔥", label: "7-Day Streak",   desc: "7 consecutive days",       xp: XP_REWARDS.WEEK_STREAK, color: "#FF6B35" },
+  { icon: "⚡", label: "First Swap",     desc: "One-time bonus",           xp: XP_REWARDS.FIRST_SWAP,  color: "#FFB547" },
+  { icon: "👥", label: "Referral",       desc: "Per friend who swaps",     xp: XP_REWARDS.REFERRAL,    color: "#9B59B6" },
+  { icon: "🐦", label: "Follow on X",    desc: "Follow @baseora",          xp: XP_REWARDS.X_FOLLOW,    color: "#1DA1F2" },
 ];
 
 const MINT_ABI = [{
@@ -59,6 +57,8 @@ export default function LeaderboardPage() {
   const [mintingLevel, setMintingLevel] = useState<Level | null>(null);
   const [mintedLevels, setMintedLevels] = useState<Set<Level>>(new Set());
   const [lastTxHash,   setLastTxHash]   = useState<string | null>(null);
+  const [xFollowDone,  setXFollowDone]  = useState(false);
+  const [xFollowLoading, setXFollowLoading] = useState(false);
 
   const xp       = userPoints?.total_xp        ?? 0;
   const level    = userPoints?.level            ?? "Bronze";
@@ -72,6 +72,33 @@ export default function LeaderboardPage() {
     toast.success("Copied!");
   };
 
+  const handleXFollow = async () => {
+    if (!address || !isConnected) { toast.error("Connect wallet first"); return; }
+    // Open X profile in new tab
+    window.open("https://x.com/baseora", "_blank");
+    setXFollowLoading(true);
+    try {
+      const res = await fetch("/api/social/follow", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ wallet: address }),
+      });
+      const data = await res.json();
+      if (data.alreadyClaimed) {
+        toast.info("Already claimed! You earned this bonus before.");
+        setXFollowDone(true);
+      } else if (data.success) {
+        toast.success(`+${XP_REWARDS.X_FOLLOW} XP earned for following @baseora!`, { icon: "🐦" });
+        setXFollowDone(true);
+      } else {
+        toast.error(data.error ?? "Failed to claim");
+      }
+    } catch {
+      toast.error("Something went wrong");
+    } finally {
+      setXFollowLoading(false);
+    }
+  };
   const handleMint = async (nftLevel: Level) => {
     if (!isConnected || !address || !walletClient || !publicClient) {
       toast.error("Connect wallet to mint"); return;
@@ -128,9 +155,9 @@ export default function LeaderboardPage() {
         <div className="min-w-0">
           <LeaderboardTable data={leaderboard} currentWallet={address} isLoading={isLoading} />
 
-          {/* Sticky "You" row */}
+          {/* Sticky "You" row — stays above mobile nav */}
           {address && userEntry && (
-            <div className="sticky bottom-4 mt-3 z-10">
+            <div className="sticky bottom-20 md:bottom-4 mt-3 z-10">
               <div className="glass-card px-3 py-2 flex items-center gap-2.5 backdrop-blur-xl"
                    style={{ borderColor: "rgba(0,82,255,0.35)" }}>
                 <span className="text-xs font-bold text-base-blue font-mono w-7 text-center">#{userEntry.rank}</span>
@@ -184,6 +211,7 @@ export default function LeaderboardPage() {
                     <RewardCard
                       key={n}
                       level={n}
+                      compact
                       unlocked={xp >= LEVEL_THRESHOLDS[n]}
                       minted={mintedLevels.has(n)}
                       onMint={() => handleMint(n)}
@@ -212,6 +240,34 @@ export default function LeaderboardPage() {
                     {copied ? <CheckCircle2 className="w-3.5 h-3.5 text-success" /> : <Copy className="w-3.5 h-3.5 text-text-muted" />}
                   </button>
                 </div>
+              </div>
+
+              {/* X Follow */}
+              <div className="glass-card p-3">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <span className="text-sm">🐦</span>
+                  <span className="text-xs font-semibold text-text-primary">Follow on X</span>
+                  <span className="ml-auto text-xs text-success font-mono">+1000 XP</span>
+                </div>
+                <p className="text-xs text-text-muted mb-2">Follow @baseora and claim your XP reward.</p>
+                <button
+                  onClick={handleXFollow}
+                  disabled={xFollowDone || xFollowLoading || !isConnected}
+                  className="w-full py-2 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1.5"
+                  style={{
+                    background: xFollowDone ? "var(--success)" + "20" : "#1DA1F2",
+                    color: xFollowDone ? "var(--success)" : "white",
+                    border: xFollowDone ? "1px solid var(--success)" : "none",
+                    opacity: (!isConnected || xFollowLoading) ? 0.6 : 1,
+                  }}
+                >
+                  {xFollowDone
+                    ? <><CheckCircle2 className="w-3.5 h-3.5" /> Claimed!</>
+                    : xFollowLoading
+                    ? "Processing…"
+                    : <><span>🐦</span> Follow & Claim +1000 XP</>
+                  }
+                </button>
               </div>
             </>
           ) : (

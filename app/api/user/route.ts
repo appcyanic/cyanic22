@@ -67,8 +67,19 @@ export async function POST(req: NextRequest) {
     const { wallet, xp_amount, event_type, volume_usd } = await req.json();
     const addr = wallet?.toLowerCase();
 
-    if (!addr || !xp_amount) {
-      return NextResponse.json({ error: "Missing params" }, { status: 400 });
+    // Input validation
+    if (!addr || typeof addr !== "string" || !/^0x[0-9a-fA-F]{40}$/.test(addr)) {
+      return NextResponse.json({ error: "Invalid wallet address" }, { status: 400 });
+    }
+    if (typeof xp_amount !== "number" || xp_amount <= 0 || xp_amount > 10_000) {
+      return NextResponse.json({ error: "Invalid xp_amount" }, { status: 400 });
+    }
+    const VALID_EVENTS = ["swap", "streak", "referral", "agent", "mint", "multi_swap", "profile"];
+    if (!event_type || !VALID_EVENTS.includes(event_type)) {
+      return NextResponse.json({ error: "Invalid event_type" }, { status: 400 });
+    }
+    if (volume_usd !== undefined && (typeof volume_usd !== "number" || volume_usd < 0 || volume_usd > 1e9)) {
+      return NextResponse.json({ error: "Invalid volume_usd" }, { status: 400 });
     }
 
     const supabase = createServiceClient();

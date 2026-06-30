@@ -286,14 +286,23 @@ export function SwapCard({ onTokensChange }: SwapCardProps) {
         <div className="flex items-center justify-between mb-1.5">
           <span className="text-xs text-text-muted font-medium">You Pay</span>
           {isConnected && (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <span className="text-xs text-text-muted font-mono">
                 {sellBalanceFormatted} {sellToken?.symbol}
               </span>
-              <button onClick={handleMaxClick}
-                      className="text-xs text-base-blue hover:text-base-blue-light font-semibold px-2 py-1 rounded-lg min-h-[32px]">
-                MAX
-              </button>
+              {[25, 50, 75, 100].map(pct => (
+                <button
+                  key={pct}
+                  onClick={() => {
+                    if (!sellBalanceRaw || !sellToken) return;
+                    const val = parseFloat(formatUnits(sellBalanceRaw, sellToken.decimals)) * pct / 100;
+                    setSellAmount(val.toFixed(6));
+                  }}
+                  className="text-xs text-base-blue hover:text-base-blue-light font-semibold px-1.5 py-1 rounded-lg min-h-[28px] hover:bg-base-blue/10 transition-all"
+                >
+                  {pct === 100 ? "MAX" : `${pct}%`}
+                </button>
+              ))}
             </div>
           )}
         </div>

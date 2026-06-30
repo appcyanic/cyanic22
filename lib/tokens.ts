@@ -9,8 +9,7 @@ export const BASE_TOKENS: Record<string, Token> = {
     symbol: "ETH",
     name: "Ethereum",
     decimals: 18,
-    logoURI:
-      "https://assets.coingecko.com/coins/images/279/thumb/ethereum.png",
+    logoURI: "https://assets.coingecko.com/coins/images/279/large/ethereum.png",
     chainId: 8453,
   },
   USDC: {
@@ -18,8 +17,7 @@ export const BASE_TOKENS: Record<string, Token> = {
     symbol: "USDC",
     name: "USD Coin",
     decimals: 6,
-    logoURI:
-      "https://assets.coingecko.com/coins/images/6319/thumb/usdc.png",
+    logoURI: "https://assets.coingecko.com/coins/images/6319/large/usdc.png",
     chainId: 8453,
   },
   WETH: {
@@ -27,8 +25,7 @@ export const BASE_TOKENS: Record<string, Token> = {
     symbol: "WETH",
     name: "Wrapped Ether",
     decimals: 18,
-    logoURI:
-      "https://assets.coingecko.com/coins/images/2518/thumb/weth.png",
+    logoURI: "https://assets.coingecko.com/coins/images/2518/large/weth.png",
     chainId: 8453,
   },
   cbETH: {
@@ -36,8 +33,7 @@ export const BASE_TOKENS: Record<string, Token> = {
     symbol: "cbETH",
     name: "Coinbase Wrapped Staked ETH",
     decimals: 18,
-    logoURI:
-      "https://assets.coingecko.com/coins/images/27008/thumb/cbeth.png",
+    logoURI: "https://assets.coingecko.com/coins/images/27008/large/cbeth.png",
     chainId: 8453,
   },
   USDT: {
@@ -45,8 +41,7 @@ export const BASE_TOKENS: Record<string, Token> = {
     symbol: "USDT",
     name: "Tether USD",
     decimals: 6,
-    logoURI:
-      "https://assets.coingecko.com/coins/images/325/thumb/tether.png",
+    logoURI: "https://assets.coingecko.com/coins/images/325/large/tether.png",
     chainId: 8453,
   },
   BRETT: {
@@ -54,8 +49,7 @@ export const BASE_TOKENS: Record<string, Token> = {
     symbol: "BRETT",
     name: "Brett",
     decimals: 18,
-    logoURI:
-      "https://assets.coingecko.com/coins/images/35529/thumb/brett.jpeg",
+    logoURI: "https://assets.coingecko.com/coins/images/35529/large/brett.jpeg",
     chainId: 8453,
   },
   DEGEN: {
@@ -63,8 +57,7 @@ export const BASE_TOKENS: Record<string, Token> = {
     symbol: "DEGEN",
     name: "Degen",
     decimals: 18,
-    logoURI:
-      "https://assets.coingecko.com/coins/images/34515/thumb/android-chrome-512x512.png",
+    logoURI: "https://assets.coingecko.com/coins/images/34515/large/android-chrome-512x512.png",
     chainId: 8453,
   },
   DAI: {
@@ -72,8 +65,7 @@ export const BASE_TOKENS: Record<string, Token> = {
     symbol: "DAI",
     name: "Dai Stablecoin",
     decimals: 18,
-    logoURI:
-      "https://assets.coingecko.com/coins/images/9956/thumb/Badge_Dai.png",
+    logoURI: "https://assets.coingecko.com/coins/images/9956/large/Badge_Dai.png",
     chainId: 8453,
   },
   AERO: {
@@ -81,8 +73,7 @@ export const BASE_TOKENS: Record<string, Token> = {
     symbol: "AERO",
     name: "Aerodrome Finance",
     decimals: 18,
-    logoURI:
-      "https://assets.coingecko.com/coins/images/31745/thumb/token.png",
+    logoURI: "https://assets.coingecko.com/coins/images/31745/large/token.png",
     chainId: 8453,
   },
   HIGHER: {
@@ -90,8 +81,7 @@ export const BASE_TOKENS: Record<string, Token> = {
     symbol: "HIGHER",
     name: "Higher",
     decimals: 18,
-    logoURI:
-      "https://assets.coingecko.com/coins/images/36103/thumb/200x200logo.png",
+    logoURI: "https://assets.coingecko.com/coins/images/36103/large/200x200logo.png",
     chainId: 8453,
   },
 };

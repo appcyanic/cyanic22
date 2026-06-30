@@ -12,9 +12,21 @@ export async function POST(req: NextRequest) {
   try {
     const { wallet, level, totalVolume, swapCount } = await req.json();
 
-    if (!wallet || !level || totalVolume === undefined || swapCount === undefined) {
-      return NextResponse.json({ error: "Missing params" }, { status: 400 });
+    // ── Input validation ──────────────────────────────────────────────
+    const VALID_LEVELS = ["Bronze", "Silver", "Gold", "Platinum", "Diamond", "Elite"];
+    if (!wallet || typeof wallet !== "string" || !/^0x[0-9a-fA-F]{40}$/.test(wallet)) {
+      return NextResponse.json({ error: "Invalid wallet address" }, { status: 400 });
     }
+    if (!level || !VALID_LEVELS.includes(level)) {
+      return NextResponse.json({ error: "Invalid level" }, { status: 400 });
+    }
+    if (typeof totalVolume !== "number" || totalVolume < 0 || totalVolume > 1e15) {
+      return NextResponse.json({ error: "Invalid totalVolume" }, { status: 400 });
+    }
+    if (typeof swapCount !== "number" || swapCount < 0 || swapCount > 1e9) {
+      return NextResponse.json({ error: "Invalid swapCount" }, { status: 400 });
+    }
+    // ─────────────────────────────────────────────────────────────────
 
     const signerKey = process.env.NFT_SIGNER_PRIVATE_KEY;
     if (!signerKey || signerKey === "your_nft_signer_private_key") {
