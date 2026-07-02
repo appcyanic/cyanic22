@@ -5,8 +5,8 @@ import { useAccount, useWalletClient, usePublicClient } from "wagmi";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import {
-  Trophy, Zap, Info, Gift, Copy, CheckCircle2,
-  Flame, Star, ExternalLink,
+  Trophy, Zap, Info,
+  Flame, Star, ExternalLink, CheckCircle2,
 } from "lucide-react";import { LeaderboardTable } from "@/components/leaderboard/LeaderboardTable";
 import { LevelBadge }       from "@/components/leaderboard/RankBadge";
 import { ProgressBar }      from "@/components/rewards/ProgressBar";
@@ -26,7 +26,6 @@ const XP_SOURCES = [
   { icon: "🤖", label: "AI Agent Swap",  desc: "Swap via AI agent",        xp: XP_REWARDS.AGENT_SWAP,  color: "#00C896" },
   { icon: "🔥", label: "7-Day Streak",   desc: "7 consecutive days",       xp: XP_REWARDS.WEEK_STREAK, color: "#FF6B35" },
   { icon: "⚡", label: "First Swap",     desc: "One-time bonus",           xp: XP_REWARDS.FIRST_SWAP,  color: "#FFB547" },
-  { icon: "👥", label: "Referral",       desc: "Per friend who swaps",     xp: XP_REWARDS.REFERRAL,    color: "#9B59B6" },
   { icon: "🐦", label: "Follow on X",    desc: "Follow @baseora",          xp: XP_REWARDS.X_FOLLOW,    color: "#1DA1F2" },
 ];
 
@@ -53,7 +52,6 @@ export default function LeaderboardPage() {
   const { leaderboard, userEntry, isLoading } = useLeaderboard();
   const { data: userPoints }     = useUserPoints();
 
-  const [copied,       setCopied]       = useState(false);
   const [mintingLevel, setMintingLevel] = useState<Level | null>(null);
   const [mintedLevels, setMintedLevels] = useState<Set<Level>>(new Set());
   const [lastTxHash,   setLastTxHash]   = useState<string | null>(null);
@@ -64,13 +62,6 @@ export default function LeaderboardPage() {
   const level    = userPoints?.level            ?? "Bronze";
   const progress = userPoints?.level_progress   ?? 0;
   const xpToNext = userPoints?.xp_to_next       ?? 1000;
-  const refLink  = `https://baseora.app?ref=${userPoints?.referral_code ?? ""}`;
-
-  const copyRef = async () => {
-    await navigator.clipboard.writeText(refLink);
-    setCopied(true); setTimeout(() => setCopied(false), 2000);
-    toast.success("Copied!");
-  };
 
   const handleXFollow = async () => {
     if (!address || !isConnected) { toast.error("Connect wallet first"); return; }
@@ -188,7 +179,6 @@ export default function LeaderboardPage() {
                   { label: "Streak",    value: `${userPoints?.streak_days ?? 0}d`,                            icon: <Flame  className="w-3 h-3 text-warning" /> },
                   { label: "Swaps",     value: userPoints?.swap_count ?? 0,                                    icon: <Zap    className="w-3 h-3 text-base-blue" /> },
                   { label: "Volume",    value: `$${(userPoints?.total_volume_usd ?? 0).toLocaleString()}`,     icon: <Trophy className="w-3 h-3 text-success" /> },
-                  { label: "Referrals", value: userPoints?.referral_count ?? 0,                                icon: <Gift   className="w-3 h-3 text-purple-400" /> },
                 ].map(s => (
                   <div key={s.label} className="flex items-center gap-1.5 p-1.5 rounded-lg bg-bg-tertiary">
                     {s.icon}
@@ -225,21 +215,6 @@ export default function LeaderboardPage() {
                     <ExternalLink className="w-3 h-3" /> BaseScan
                   </a>
                 )}
-              </div>
-
-              {/* Referral */}
-              <div className="glass-card p-3">
-                <div className="flex items-center gap-1.5 mb-1.5">
-                  <Gift className="w-3.5 h-3.5 text-base-blue" />
-                  <span className="text-xs font-semibold">Referral</span>
-                  <span className="ml-auto text-xs text-success font-mono">+1000 XP</span>
-                </div>
-                <div className="flex items-center gap-1.5 p-1.5 rounded-lg bg-bg-tertiary border border-border">
-                  <span className="font-mono text-xs text-text-secondary flex-1 truncate">{refLink}</span>
-                  <button onClick={copyRef} className="flex-shrink-0 p-0.5 rounded hover:bg-bg-secondary">
-                    {copied ? <CheckCircle2 className="w-3.5 h-3.5 text-success" /> : <Copy className="w-3.5 h-3.5 text-text-muted" />}
-                  </button>
-                </div>
               </div>
 
               {/* X Follow */}
