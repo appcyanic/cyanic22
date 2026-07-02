@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 import { X, Check } from "lucide-react";
+import { useBalance } from "wagmi";
+import { useAccount } from "wagmi";
+import { formatUnits } from "viem";
 import { SUPPORTED_CHAINS } from "@/lib/bridgeChains";
 import { cn } from "@/lib/utils";
 
@@ -27,6 +30,24 @@ export function ChainLogo({ logoURI, icon, name, size = 24 }: ChainLogoProps) {
          style={{ width: size, height: size, fontSize: size * 0.55 }}>
       {icon}
     </div>
+  );
+}
+
+// Per-chain balance display
+function ChainBalance({ chainId }: { chainId: number }) {
+  const { address } = useAccount();
+  const { data } = useBalance({
+    address,
+    chainId,
+    query: { enabled: !!address, staleTime: 10_000 },
+  });
+
+  if (!address || !data) return null;
+  const formatted = Number(formatUnits(data.value, data.decimals)).toFixed(4);
+  return (
+    <span className="text-xs text-text-muted font-mono ml-auto">
+      {formatted} {data.symbol}
+    </span>
   );
 }
 
@@ -67,11 +88,11 @@ export function ChainSelector({ value, onChange, exclude = [], onClose }: ChainS
               )}
             >
               <ChainLogo logoURI={chain.logoURI} icon={chain.icon} name={chain.name} size={28} />
-              <div className="flex-1 text-left">
+              <div className="flex-1 text-left min-w-0">
                 <div className={cn("text-sm font-semibold", isActive ? "text-base-blue" : "text-text-primary")}>
                   {chain.name}
                 </div>
-                <div className="text-xs text-text-muted">Chain ID {chain.id}</div>
+                <ChainBalance chainId={chain.id} />
               </div>
               {isActive && <Check className="w-4 h-4 text-base-blue flex-shrink-0" />}
             </button>

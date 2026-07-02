@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
       .from("user_points")
       .select("wallet_address, total_xp, total_volume_usd, swap_count, referral_count")
       .order(orderCol, { ascending: false })
-      .limit(200);
+      .limit(500);
 
     // Fall back to mock if Supabase empty or errored
     let rows = (!error && data && data.length > 0)
