@@ -170,24 +170,24 @@ export default function LeaderboardPage() {
         <div className="space-y-3">
           {isConnected ? (
             <>
-              {/* XP Progress */}
-              <ProgressBar level={level} xp={xp} progress={progress} xpToNext={xpToNext} />
-
-              {/* Stats */}
-              <div className="glass-card p-3 grid grid-cols-2 gap-2">
-                {[
-                  { label: "Streak",    value: `${userPoints?.streak_days ?? 0}d`,                            icon: <Flame  className="w-3 h-3 text-warning" /> },
-                  { label: "Swaps",     value: userPoints?.swap_count ?? 0,                                    icon: <Zap    className="w-3 h-3 text-base-blue" /> },
-                  { label: "Volume",    value: `$${(userPoints?.total_volume_usd ?? 0).toLocaleString()}`,     icon: <Trophy className="w-3 h-3 text-success" /> },
-                ].map(s => (
-                  <div key={s.label} className="flex items-center gap-1.5 p-1.5 rounded-lg bg-bg-tertiary">
-                    {s.icon}
-                    <div>
-                      <div className="text-xs font-bold text-text-primary">{s.value}</div>
-                      <div className="text-xs text-text-muted">{s.label}</div>
+              {/* XP Progress + Stats combined */}
+              <div className="glass-card p-4">
+                <ProgressBar level={level} xp={xp} progress={progress} xpToNext={xpToNext} className="!p-0 !border-0 !shadow-none !bg-transparent" />
+                <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-border">
+                  {[
+                    { label: "Streak",  value: `${userPoints?.streak_days ?? 0}d`,                         icon: <Flame  className="w-3 h-3 text-warning" /> },
+                    { label: "Swaps",   value: userPoints?.swap_count ?? 0,                                 icon: <Zap    className="w-3 h-3 text-base-blue" /> },
+                    { label: "Volume",  value: `$${(userPoints?.total_volume_usd ?? 0).toLocaleString()}`,  icon: <Trophy className="w-3 h-3 text-success" /> },
+                  ].map(s => (
+                    <div key={s.label} className="flex items-center gap-1.5 p-1.5 rounded-lg bg-bg-tertiary">
+                      {s.icon}
+                      <div>
+                        <div className="text-xs font-bold text-text-primary">{s.value}</div>
+                        <div className="text-xs text-text-muted">{s.label}</div>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
 
               {/* NFT Mint */}
