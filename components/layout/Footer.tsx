@@ -12,7 +12,7 @@ export function Footer() {
             <div className="w-6 h-6 rounded-lg bg-gradient-base flex items-center justify-center">
               <Zap className="w-3 h-3 text-white" />
             </div>
-            <span className="font-bold gradient-text">Baseora</span>
+            <span className="font-bold gradient-text">Cyanic</span>
             <span className="text-text-muted text-sm">DEX Aggregator on Base</span>
           </div>
 

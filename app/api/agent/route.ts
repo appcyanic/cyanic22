@@ -45,7 +45,7 @@ async function checkRateLimit(key: string): Promise<{ allowed: boolean; remainin
   return { allowed: true, remaining: RATE_LIMIT - entry.count };
 }
 
-const systemPrompt = `You are the AI assistant for "Baseora", a DEX Aggregator running on the Base blockchain network.
+const systemPrompt = `You are the AI assistant for "Cyanic", a DEX Aggregator running on the Base blockchain network.
 You help users with token swaps, DeFi strategies, portfolio analysis, and everything about the Base ecosystem.
 
 Core knowledge:

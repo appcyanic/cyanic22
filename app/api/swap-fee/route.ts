@@ -31,7 +31,7 @@ export const POST = withX402(
     price: "$0.10",
     network,
     config: {
-      description: "Baseora Swap Fee — $0.10 USDC per confirmed swap",
+      description: "Cyanic Swap Fee — $0.10 USDC per confirmed swap",
       maxTimeoutSeconds: 120,
     },
   }

@@ -7,12 +7,12 @@ import BlockchainBackground from "@/components/ui/BlockchainBackground";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Baseora — DEX Aggregator on Base",
+  title: "Cyanic — DEX Aggregator on Base",
   description:
     "Get the best swap prices across Uniswap V3, Aerodrome, SushiSwap and more on Base. Powered by 0x Protocol with AI-assisted trading.",
-  keywords: ["DEX", "Base", "Swap", "Aggregator", "DeFi", "Uniswap", "Aerodrome", "Baseora"],
+  keywords: ["DEX", "Base", "Swap", "Aggregator", "DeFi", "Uniswap", "Aerodrome", "Cyanic"],
   openGraph: {
-    title: "Baseora DEX Aggregator",
+    title: "Cyanic DEX Aggregator",
     description: "Best swap prices on Base. Powered by 0x + AI.",
     type: "website",
   },

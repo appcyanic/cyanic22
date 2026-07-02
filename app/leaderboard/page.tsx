@@ -26,7 +26,7 @@ const XP_SOURCES = [
   { icon: "🤖", label: "AI Agent Swap",  desc: "Swap via AI agent",        xp: XP_REWARDS.AGENT_SWAP,  color: "#00C896" },
   { icon: "🔥", label: "7-Day Streak",   desc: "7 consecutive days",       xp: XP_REWARDS.WEEK_STREAK, color: "#FF6B35" },
   { icon: "⚡", label: "First Swap",     desc: "One-time bonus",           xp: XP_REWARDS.FIRST_SWAP,  color: "#FFB547" },
-  { icon: "🐦", label: "Follow on X",    desc: "Follow @baseora",          xp: XP_REWARDS.X_FOLLOW,    color: "#1DA1F2" },
+  { icon: "🐦", label: "Follow on X",    desc: "Follow @cyanic",           xp: XP_REWARDS.X_FOLLOW,    color: "#1DA1F2" },
 ];
 
 const MINT_ABI = [{
@@ -66,7 +66,7 @@ export default function LeaderboardPage() {
   const handleXFollow = async () => {
     if (!address || !isConnected) { toast.error("Connect wallet first"); return; }
     // Open X profile in new tab
-    window.open("https://x.com/baseora", "_blank");
+    window.open("https://x.com/cyanic", "_blank");
     setXFollowLoading(true);
     try {
       const res = await fetch("/api/social/follow", {
@@ -79,7 +79,7 @@ export default function LeaderboardPage() {
         toast.info("Already claimed! You earned this bonus before.");
         setXFollowDone(true);
       } else if (data.success) {
-        toast.success(`+${XP_REWARDS.X_FOLLOW} XP earned for following @baseora!`, { icon: "🐦" });
+        toast.success(`+${XP_REWARDS.X_FOLLOW} XP earned for following @cyanic!`, { icon: "🐦" });
         setXFollowDone(true);
       } else {
         toast.error(data.error ?? "Failed to claim");
@@ -224,7 +224,7 @@ export default function LeaderboardPage() {
                   <span className="text-xs font-semibold text-text-primary">Follow on X</span>
                   <span className="ml-auto text-xs text-success font-mono">+1000 XP</span>
                 </div>
-                <p className="text-xs text-text-muted mb-2">Follow @baseora and claim your XP reward.</p>
+                <p className="text-xs text-text-muted mb-2">Follow @cyanic and claim your XP reward.</p>
                 <button
                   onClick={handleXFollow}
                   disabled={xFollowDone || xFollowLoading || !isConnected}

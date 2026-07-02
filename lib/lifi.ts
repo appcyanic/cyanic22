@@ -32,7 +32,7 @@ let lifiClient: ReturnType<typeof createClient> | null = null;
 export function getLifiClient() {
   if (!lifiClient) {
     lifiClient = createClient({
-      integrator: process.env.NEXT_PUBLIC_LIFI_INTEGRATOR ?? "baseora",
+      integrator: process.env.NEXT_PUBLIC_LIFI_INTEGRATOR ?? "cyanic",
     });
   }
   return lifiClient;
@@ -67,7 +67,7 @@ export async function fetchBridgeRoutes(params: BridgeRouteParams): Promise<Rout
       slippage:           params.slippage ?? 0.005,
       maxPriceImpact:     0.05,
       allowSwitchChain:   false,
-      integrator:         process.env.NEXT_PUBLIC_LIFI_INTEGRATOR ?? "baseora",
+      integrator:         process.env.NEXT_PUBLIC_LIFI_INTEGRATOR ?? "cyanic",
       // fee removed — requires portal.li.fi registration to collect integrator fees
     },
   };

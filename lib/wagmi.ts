@@ -5,7 +5,7 @@ import {
 import { getDefaultConfig } from "@rainbow-me/rainbowkit";
 
 export const wagmiConfig = getDefaultConfig({
-  appName: "Baseora DEX Aggregator",
+  appName: "Cyanic DEX Aggregator",
   projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "demo_project_id",
   chains: [base, mainnet, optimism, arbitrum, polygon, bsc, avalanche, linea, scroll],
   transports: {

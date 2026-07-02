@@ -5,7 +5,7 @@ import { generateReferralCode } from "@/lib/points";
 
 /**
  * POST /api/social/follow
- * Awards 1000 XP for following @baseora on X (one-time per wallet).
+ * Awards 1000 XP for following @cyanic on X (one-time per wallet).
  * Body: { wallet: string }
  *
  * Note: We can't programmatically verify Twitter follows without OAuth.

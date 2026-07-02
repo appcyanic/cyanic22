@@ -10,7 +10,7 @@ export const middleware = paymentMiddleware(
       price: "$0.01",
       network,
       config: {
-        description: "Baseora AI Agent — DeFi assistant for Base",
+        description: "Cyanic AI Agent — DeFi assistant for Base",
         maxTimeoutSeconds: 120,
       },
     },

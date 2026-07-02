@@ -101,7 +101,7 @@ export function AgentChat() {
             </div>
 
             <h2 className="text-xl font-bold text-text-primary mb-1">
-              Baseora AI Agent
+              Cyanic AI Agent
             </h2>
             <p className="text-text-secondary text-sm max-w-sm mb-1">
               Your DeFi assistant for the Base ecosystem.

@@ -83,7 +83,7 @@ export default function StatsPage() {
           Protocol Stats
         </h1>
         <p className="text-text-secondary text-sm">
-          Real-time trading statistics for Baseora on Base
+          Real-time trading statistics for Cyanic on Base
         </p>
         {/* Demo data disclaimer */}
         <div className="inline-flex items-center gap-2 mt-3 px-3 py-1.5 rounded-full border border-warning/30 bg-warning/10">

@@ -3,7 +3,7 @@ import { Metadata } from "next";
 import { Sparkles } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "AI Agent — Baseora",
+  title: "AI Agent — Cyanic",
   description: "AI-powered DeFi assistant for Base",
 };
 
@@ -27,7 +27,7 @@ export default function AgentPage() {
               <Sparkles className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="font-bold text-text-primary">Baseora AI Agent</h1>
+              <h1 className="font-bold text-text-primary">Cyanic AI Agent</h1>
               <p className="text-xs text-text-muted">
                 DeFi assistant for Base
               </p>

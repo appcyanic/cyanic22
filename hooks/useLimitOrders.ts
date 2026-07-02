@@ -53,7 +53,7 @@ export function useLimitOrders() {
   useEffect(() => {
     if (!address) return;
     try {
-      const stored = localStorage.getItem(`baseora_limit_orders_${address}`);
+      const stored = localStorage.getItem(`cyanic_limit_orders_${address}`);
       if (stored) {
         const parsed: LimitOrder[] = JSON.parse(stored);
         // only keep active orders
@@ -68,7 +68,7 @@ export function useLimitOrders() {
     setOrders(newOrders);
     try {
       localStorage.setItem(
-        `baseora_limit_orders_${address}`,
+        `cyanic_limit_orders_${address}`,
         JSON.stringify(newOrders)
       );
     } catch { /* ignore */ }

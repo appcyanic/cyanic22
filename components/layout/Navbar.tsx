@@ -39,7 +39,7 @@ export function Navbar() {
             <div className="w-8 h-8 rounded-xl bg-gradient-base flex items-center justify-center">
               <Zap className="w-4 h-4 text-white" />
             </div>
-            <span className="font-bold text-lg gradient-text">Baseora</span>
+            <span className="font-bold text-lg gradient-text">Cyanic</span>
           </Link>
 
           {/* Desktop nav */}

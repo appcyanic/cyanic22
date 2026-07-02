@@ -38,7 +38,7 @@ function RainbowWrapper({ children }: { children: React.ReactNode }) {
               overlayBlur: "small",
             })
       }
-      appInfo={{ appName: "Baseora DEX Aggregator" }}
+      appInfo={{ appName: "Cyanic DEX Aggregator" }}
     >
       {children}
     </RainbowKitProvider>
