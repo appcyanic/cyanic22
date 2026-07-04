@@ -1,6 +1,15 @@
 import { streamText } from "ai";
-import { anthropic } from "@ai-sdk/anthropic";
+import { createOpenAI } from "@ai-sdk/openai";
 import { NextRequest, NextResponse } from "next/server";
+
+const openrouter = createOpenAI({
+  baseURL: "https://openrouter.ai/api/v1",
+  apiKey: process.env.OPENROUTER_API_KEY ?? "",
+  headers: {
+    "HTTP-Referer": process.env.NEXT_PUBLIC_BASE_URL ?? "https://cyanic.vercel.app",
+    "X-Title": "Cyanic DEX Aggregator",
+  },
+});
 
 // Use Upstash Redis if configured, otherwise fallback to in-memory
 const RATE_LIMIT = 20;
@@ -95,7 +104,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     .map(m => ({ role: m.role as "user" | "assistant", content: m.content.slice(0, 2000) }));
 
   const result = await streamText({
-    model: anthropic("claude-sonnet-4-5"),
+    model: openrouter("z-ai/glm-4.5"),
     system: systemPrompt,
     messages,
     maxTokens: 1024,
