@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { Zap } from "lucide-react";
 
 export function Footer() {
   return (
@@ -9,9 +8,7 @@ export function Footer() {
 
           {/* Logo */}
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-lg bg-gradient-base flex items-center justify-center">
-              <Zap className="w-3 h-3 text-white" />
-            </div>
+            <img src="/logo.png" alt="Cyanic" className="w-6 h-6 rounded-lg object-cover" />
             <span className="font-bold gradient-text">Cyanic</span>
             <span className="text-text-muted text-sm">DEX Aggregator on Base</span>
           </div>

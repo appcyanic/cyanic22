@@ -11,10 +11,15 @@ export const metadata: Metadata = {
   description:
     "Get the best swap prices across Uniswap V3, Aerodrome, SushiSwap and more on Base. Powered by 0x Protocol with AI-assisted trading.",
   keywords: ["DEX", "Base", "Swap", "Aggregator", "DeFi", "Uniswap", "Aerodrome", "Cyanic"],
+  icons: {
+    icon: "/logo.png",
+    apple: "/logo.png",
+  },
   openGraph: {
     title: "Cyanic DEX Aggregator",
     description: "Best swap prices on Base. Powered by 0x + AI.",
     type: "website",
+    images: ["/logo.png"],
   },
 };
 
