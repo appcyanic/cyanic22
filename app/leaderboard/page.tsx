@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAccount, useWalletClient, usePublicClient } from "wagmi";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
@@ -57,6 +57,32 @@ export default function LeaderboardPage() {
   const [lastTxHash,   setLastTxHash]   = useState<string | null>(null);
   const [xFollowDone,  setXFollowDone]  = useState(false);
   const [xFollowLoading, setXFollowLoading] = useState(false);
+
+  // ── Load on-chain minted status ──
+  useEffect(() => {
+    if (!address || !publicClient || !CONTRACT_ADDRESS) return;
+    const LEVEL_ENUM = [0, 1, 2, 3, 4, 5] as const;
+    const HAS_MINTED_ABI = [{
+      name: "hasMinted", type: "function", stateMutability: "view",
+      inputs: [{ name: "", type: "address" }, { name: "", type: "uint8" }],
+      outputs: [{ name: "", type: "bool" }],
+    }] as const;
+
+    Promise.all(
+      LEVEL_ENUM.map(idx =>
+        publicClient.readContract({
+          address: CONTRACT_ADDRESS,
+          abi: HAS_MINTED_ABI,
+          functionName: "hasMinted",
+          args: [address, idx],
+        })
+      )
+    ).then(results => {
+      const minted = new Set<Level>();
+      ALL_LEVELS.forEach((lvl, i) => { if (results[i]) minted.add(lvl); });
+      setMintedLevels(minted);
+    }).catch(() => {});
+  }, [address, publicClient]);
 
   const xp       = userPoints?.total_xp        ?? 0;
   const level    = userPoints?.level            ?? "Bronze";

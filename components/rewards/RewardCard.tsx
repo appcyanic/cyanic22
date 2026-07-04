@@ -115,7 +115,7 @@ export function RewardCard({ level, unlocked, minted, onMint, isLoading, compact
       </div>
 
       <div className="space-y-1">
-        <h3 className="font-bold text-sm text-text-primary">{level} Swapper NFT</h3>
+        <h3 className="font-bold text-sm text-text-primary">{level} Cyanic NFT</h3>
         <p className="text-xs text-text-muted">
           {unlocked ? "On-chain NFT · Dynamic SVG" : `Requires ${LEVEL_THRESHOLDS[level].toLocaleString()} XP`}
         </p>

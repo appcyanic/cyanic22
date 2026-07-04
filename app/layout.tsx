@@ -7,6 +7,7 @@ import BlockchainBackground from "@/components/ui/BlockchainBackground";
 import "./globals.css";
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000"),
   title: "Cyanic — DEX Aggregator on Base",
   description:
     "Get the best swap prices across Uniswap V3, Aerodrome, SushiSwap and more on Base. Powered by 0x Protocol with AI-assisted trading.",

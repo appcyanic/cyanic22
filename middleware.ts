@@ -17,7 +17,8 @@ export const middleware = paymentMiddleware(
   }
 );
 
+export const runtime = "nodejs";
+
 export const config = {
   matcher: ["/api/agent"],
-  runtime: "nodejs",
 };

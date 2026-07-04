@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { base } from "viem/chains";
 import { keccak256, encodePacked, toBytes } from "viem";
 
 const LEVEL_INDEX: Record<string, number> = {
@@ -49,7 +47,6 @@ export async function POST(req: NextRequest) {
       )
     );
 
-    const client = createWalletClient({ account, chain: base, transport: http() });
     const signature = await account.signMessage({ message: { raw: toBytes(msgHash) } });
 
     return NextResponse.json({ signature, demo: false });

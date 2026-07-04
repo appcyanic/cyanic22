@@ -6,44 +6,6 @@ export type Level =
   | "Diamond"
   | "Elite";
 
-export interface UserProfile {
-  id: string;
-  wallet_address: string;
-  ens_name?: string;
-  total_xp: number;
-  level: Level;
-  referral_code: string;
-  referred_by?: string;
-  streak_days: number;
-  last_swap_date?: string;
-  created_at: string;
-}
-
-export interface XPEvent {
-  id: string;
-  wallet_address: string;
-  event_type:
-    | "swap"
-    | "streak"
-    | "referral"
-    | "agent"
-    | "mint"
-    | "multi_swap"
-    | "profile";
-  xp_amount: number;
-  metadata?: Record<string, unknown>;
-  created_at: string;
-}
-
-export interface MintedNFT {
-  id: string;
-  wallet_address: string;
-  token_id: number;
-  level: Level;
-  tx_hash?: string;
-  created_at: string;
-}
-
 export interface LeaderboardEntry {
   rank: number;
   wallet_address: string;
@@ -74,19 +36,17 @@ export const LEVEL_COLORS: Record<Level, string> = {
 };
 
 export const XP_REWARDS = {
-  FIRST_SWAP:       500,   // ilk swap bonus (bir kere)
-  PER_SWAP:         50,    // her swap (min bakiye şartı yok)
-  AGENT_SWAP:       250,   // AI agent üzerinden yapılan swap
-  DAILY_SWAP:       50,    // günlük swap streak bonusu
-  WEEK_STREAK:      500,   // 7 günlük streak
-  REFERRAL:         1000,  // davet edilen kişi swap yaparsa
-  REFERRED_BONUS:   200,   // davet edilenin ilk swap bonusu
-  X_FOLLOW:         1000,  // X hesabını takip etme
-  AGENT_QUERY:      5,     // AI agent sorgusu
-  MULTI_SWAP:       25,    // çoklu swap
+  FIRST_SWAP:       500,
+  PER_SWAP:         50,
+  AGENT_SWAP:       250,
+  DAILY_SWAP:       50,
+  WEEK_STREAK:      500,
+  REFERRAL:         1000,
+  REFERRED_BONUS:   200,
+  X_FOLLOW:         1000,
+  AGENT_QUERY:      5,
+  MULTI_SWAP:       25,
   PROFILE_COMPLETE: 100,
-  // Eski alan — geriye uyumluluk için
-  PER_100_USD:      10,
 };
 
 export function getLevelFromXP(xp: number): Level {

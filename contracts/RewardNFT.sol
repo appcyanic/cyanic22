@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Base64.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 
-/// @title SwapperNFT — Nexus DEX Aggregator Reward NFT
+/// @title SwapperNFT — Cyanic DEX Aggregator Reward NFT
 /// @notice ERC-721 NFT awarded to users based on swap activity level.
 ///         Metadata is fully on-chain with dynamic SVG generation.
 contract SwapperNFT is ERC721, Ownable {
@@ -33,7 +33,7 @@ contract SwapperNFT is ERC721, Ownable {
 
     // ------------------------------------------------------------------
     constructor(address _signer)
-        ERC721("Nexus Swapper NFT", "NSNFT")
+        ERC721("Cyanic Swapper NFT", "CSNFT")
         Ownable(msg.sender)
     {
         trustedSigner = _signer;
@@ -84,7 +84,7 @@ contract SwapperNFT is ERC721, Ownable {
 
         string memory json = Base64.encode(bytes(string(abi.encodePacked(
             '{"name":"', levelName, ' Swapper #', tokenId.toString(), '",',
-            '"description":"Earned by swapping on Nexus DEX Aggregator on Base.",',
+            '"description":"Earned by swapping on Cyanic DEX Aggregator on Base.",',
             '"image":"data:image/svg+xml;base64,', Base64.encode(bytes(svgImage)), '",',
             '"attributes":[',
                 '{"trait_type":"Level","value":"',      levelName,                          '"},',
@@ -133,7 +133,7 @@ contract SwapperNFT is ERC721, Ownable {
             '</text>',
             // Level name
             '<text x="200" y="250" text-anchor="middle" fill="#FFFFFF" font-family="Arial" font-size="22" font-weight="bold">',
-            levelName, ' SWAPPER</text>',
+            levelName, ' CYANIC</text>',
             // Stats
             '<text x="200" y="290" text-anchor="middle" fill="#8B8FA8" font-family="Arial" font-size="13">',
             data.swapCount.toString(), ' swaps &bull; $', (data.totalVolume / 1e6).toString(), 'K volume</text>',

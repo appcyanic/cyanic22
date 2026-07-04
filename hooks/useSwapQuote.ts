@@ -98,7 +98,13 @@ export function useSwapQuote({
   const fetchQuote = useCallback(async () => {
     if (!sellToken || !buyToken || !sellAmount || !enabled) return;
 
-    const amount = BigInt(sellAmount || "0");
+    let amount: bigint;
+    try {
+      // sellAmount must be an integer string (wei units); guard against floats
+      amount = BigInt(Math.floor(Number(sellAmount || "0")));
+    } catch {
+      amount = BigInt(0);
+    }
     if (amount === BigInt(0)) {
       setQuote(null);
       setSelectedDex(null);
