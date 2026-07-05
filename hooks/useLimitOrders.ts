@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useAccount, useWalletClient, usePublicClient } from "wagmi";
-import { parseUnits, erc20Abi, maxUint256 } from "viem";
+import { parseUnits, erc20Abi, maxUint256, hashTypedData, toBytes } from "viem";
 import { toast } from "sonner";
 import { OrderBookApi, OrderSigningUtils, SupportedChainId, SigningScheme } from "@cowprotocol/cow-sdk";
 import type { Token } from "@/types/token";
@@ -133,35 +133,43 @@ export function useLimitOrders() {
         buyTokenBalance:   "erc20" as const,
       };
 
-      // ── Get EIP-712 domain from SDK ────────────────────────────
+      // ── Sign using eth_sign (ethsign scheme) ────────────────────
+      // ethsign is simpler: sign the raw order hash with personal_sign
+      // This avoids EIP-712 domain/type mismatch issues
       toast.loading("Sign order in wallet…", { id: toastId });
 
       const domain = await OrderSigningUtils.getDomain(CHAIN_ID);
+      const types  = OrderSigningUtils.getEIP712Types();
 
-      // Get the EIP-712 types from SDK
-      const types = OrderSigningUtils.getEIP712Types();
-
-      // Build the typed message matching CoW's format exactly
-      const typedMessage = {
-        sellToken:         order.sellToken,
-        buyToken:          order.buyToken,
-        receiver:          order.receiver,
-        sellAmount:        BigInt(order.sellAmount),
-        buyAmount:         BigInt(order.buyAmount),
-        validTo:           order.validTo,
-        appData:           order.appData as `0x${string}`,
-        feeAmount:         BigInt(0),
-        kind:              "0xf3b277728b3fee749481eb3e0b3b48980dbbab78659fc8fd35d39bf3532f2000" as `0x${string}`,
-        partiallyFillable: false,
-        sellTokenBalance:  "0x5a28e9363bb942b639270062aa6bb295f434bcdfc42c97267bf003f272060dc9" as `0x${string}`,
-        buyTokenBalance:   "0x5a28e9363bb942b639270062aa6bb295f434bcdfc42c97267bf003f272060dc9" as `0x${string}`,
-      };
-
-      const signature = await walletClient.signTypedData({
-        domain:      domain as Parameters<typeof walletClient.signTypedData>[0]["domain"],
-        types:       types  as Parameters<typeof walletClient.signTypedData>[0]["types"],
+      // Compute the EIP-712 hash ourselves using viem
+      const orderHash = hashTypedData({
+        domain: {
+          name:              domain.name as string,
+          version:           domain.version as string,
+          chainId:           domain.chainId as number,
+          verifyingContract: domain.verifyingContract as `0x${string}`,
+        },
+        types: types as Parameters<typeof hashTypedData>[0]["types"],
         primaryType: "Order",
-        message:     typedMessage,
+        message: {
+          sellToken:         order.sellToken,
+          buyToken:          order.buyToken,
+          receiver:          order.receiver as `0x${string}`,
+          sellAmount:        BigInt(order.sellAmount),
+          buyAmount:         BigInt(order.buyAmount),
+          validTo:           order.validTo,
+          appData:           order.appData as `0x${string}`,
+          feeAmount:         BigInt(0),
+          kind:              "0xf3b277728b3fee749481eb3e0b3b48980dbbab78659fc8fd35d39bf3532f2000" as `0x${string}`,
+          partiallyFillable: false,
+          sellTokenBalance:  "0x5a28e9363bb942b639270062aa6bb295f434bcdfc42c97267bf003f272060dc9" as `0x${string}`,
+          buyTokenBalance:   "0x5a28e9363bb942b639270062aa6bb295f434bcdfc42c97267bf003f272060dc9" as `0x${string}`,
+        },
+      });
+
+      // Sign the hash with eth_sign (adds \x19Ethereum Signed Message prefix)
+      const signature = await walletClient.signMessage({
+        message: { raw: toBytes(orderHash) },
       });
 
       // ── Submit to CoW API ──────────────────────────────────────
@@ -170,7 +178,7 @@ export function useLimitOrders() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const orderId = await orderBookApi.sendOrder({
         ...order,
-        signingScheme: SigningScheme.EIP712,
+        signingScheme: SigningScheme.ETHSIGN,
         signature,
         from: address,
       } as any);

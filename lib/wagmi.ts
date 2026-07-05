@@ -10,7 +10,7 @@ export const wagmiConfig = getDefaultConfig({
   chains: [base, mainnet, optimism, arbitrum, polygon, bsc, avalanche, linea, scroll],
   transports: {
     [base.id]:      http(process.env.NEXT_PUBLIC_BASE_RPC_URL || "https://mainnet.base.org"),
-    [mainnet.id]:   http("https://eth.llamarpc.com"),
+    [mainnet.id]:   http("https://cloudflare-eth.com"),
     [optimism.id]:  http("https://mainnet.optimism.io"),
     [arbitrum.id]:  http("https://arb1.arbitrum.io/rpc"),
     [polygon.id]:   http("https://polygon-rpc.com"),
