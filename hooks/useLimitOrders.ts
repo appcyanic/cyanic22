@@ -44,17 +44,12 @@ const COW_ORDER_TYPES = {
     { name: "validTo",           type: "uint32"  },
     { name: "appData",           type: "bytes32" },
     { name: "feeAmount",         type: "uint256" },
-    { name: "kind",              type: "bytes32" },
+    { name: "kind",              type: "string"  },
     { name: "partiallyFillable", type: "bool"    },
-    { name: "sellTokenBalance",  type: "bytes32" },
-    { name: "buyTokenBalance",   type: "bytes32" },
+    { name: "sellTokenBalance",  type: "string"  },
+    { name: "buyTokenBalance",   type: "string"  },
   ],
 } as const;
-
-// keccak256("sell")
-const KIND_SELL   = "0xf3b277728b3fee749481eb3e0b3b48980dbbab78659fc8fd35d39bf3532f2000" as `0x${string}`;
-// keccak256("erc20")
-const BAL_ERC20   = "0x5a28e9363bb942b639270062aa6bb295f434bcdfc42c97267bf003f272060dc9" as `0x${string}`;
 
 const orderBookApi = new OrderBookApi({ chainId: CHAIN_ID });
 
@@ -172,10 +167,10 @@ export function useLimitOrders() {
           validTo:           validTo,
           appData:           "0x0000000000000000000000000000000000000000000000000000000000000000" as `0x${string}`,
           feeAmount:         BigInt(0),
-          kind:              KIND_SELL,
+          kind:              "sell",
           partiallyFillable: false,
-          sellTokenBalance:  BAL_ERC20,
-          buyTokenBalance:   BAL_ERC20,
+          sellTokenBalance:  "erc20",
+          buyTokenBalance:   "erc20",
         },
       });
 
