@@ -191,7 +191,7 @@ export function AgentChat() {
       </div>
 
       {/* ── Input bar ── */}
-      <div className="p-4 border-t border-border">
+      <div className="sticky bottom-0 p-4 border-t border-border bg-bg-primary/95 backdrop-blur-xl">
         <form onSubmit={handleSubmit} className="flex gap-3">
           <input
             ref={inputRef}

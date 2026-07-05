@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 
 export default function AgentPage() {
   return (
-    <div className="min-h-[calc(100dvh-4rem)] flex flex-col">
+    <div className="h-[calc(100dvh-4rem)] flex flex-col overflow-hidden">
       {/* Background */}
       <div
         className="fixed top-1/3 right-1/4 w-[400px] h-[400px] pointer-events-none"
@@ -40,8 +40,8 @@ export default function AgentPage() {
         </div>
       </div>
 
-      {/* Chat area */}
-      <div className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 flex flex-col min-h-0 overflow-hidden">
+      {/* Chat area — fills remaining height, input stays at bottom */}
+      <div className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 flex flex-col min-h-0 pb-16 md:pb-0">
         <AgentChat />
       </div>
     </div>
