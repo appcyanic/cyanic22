@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useAccount, useWalletClient, usePublicClient } from "wagmi";
-import { parseUnits, erc20Abi, maxUint256, hashTypedData } from "viem";
+import { parseUnits, erc20Abi, maxUint256, getAddress } from "viem";
 import { toast } from "sonner";
 import { OrderBookApi, SupportedChainId, SigningScheme } from "@cowprotocol/cow-sdk";
 import type { Token } from "@/types/token";
@@ -118,16 +118,20 @@ export function useLimitOrders() {
       }
 
       // ── Build order struct ─────────────────────────────────────
+      // Use checksummed addresses everywhere for consistent EIP-712 hashing
+      const sellTokenAddr = getAddress(sellToken.address);
+      const buyTokenAddr  = getAddress(buyToken.address);
+
       const order = {
-        sellToken:         sellToken.address.toLowerCase() as `0x${string}`,
-        buyToken:          buyToken.address.toLowerCase()  as `0x${string}`,
+        sellToken:         sellTokenAddr,
+        buyToken:          buyTokenAddr,
         sellAmount:        sellAmountRaw.toString(),
         buyAmount:         buyAmountRaw.toString(),
         validTo,
         appData:           "0x0000000000000000000000000000000000000000000000000000000000000000",
         feeAmount:         "0",
         kind:              "sell" as const,
-        receiver:          address,
+        receiver:          getAddress(address),
         partiallyFillable: false,
         sellTokenBalance:  "erc20" as const,
         buyTokenBalance:   "erc20" as const,
@@ -166,9 +170,9 @@ export function useLimitOrders() {
         types:       cowTypes,
         primaryType: "Order",
         message: {
-          sellToken:         order.sellToken,
-          buyToken:          order.buyToken,
-          receiver:          order.receiver as `0x${string}`,
+          sellToken:         order.sellToken as `0x${string}`,
+          buyToken:          order.buyToken  as `0x${string}`,
+          receiver:          getAddress(order.receiver),
           sellAmount:        BigInt(order.sellAmount),
           buyAmount:         BigInt(order.buyAmount),
           validTo:           order.validTo,
@@ -188,13 +192,15 @@ export function useLimitOrders() {
         ...order,
         signingScheme: SigningScheme.EIP712,
         signature,
-        from: address,
+        from: getAddress(address),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any).catch(async (e: unknown) => {
-        if (e && typeof e === "object" && "body" in e) {
-          console.error("CoW API error body:", (e as { body: unknown }).body);
-        }
-        console.error("CoW sendOrder error:", e);
+        console.error("CoW sendOrder full error:", JSON.stringify(e, Object.getOwnPropertyNames(e as object)));
+        const errObj = e as Record<string, unknown>;
+        console.error("CoW error keys:", Object.getOwnPropertyNames(e as object));
+        console.error("CoW error body:", errObj?.body);
+        console.error("CoW error message:", errObj?.message);
+        console.error("CoW error responseBody:", errObj?.responseBody);
         throw e;
       });
 
