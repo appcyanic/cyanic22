@@ -184,8 +184,8 @@ export function useLimitOrders() {
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const orderId: string = await orderBookApi.sendOrder({
-        sellToken:         sellAddr.toLowerCase(),
-        buyToken:          buyAddr.toLowerCase(),
+        sellToken:         sellAddr,
+        buyToken:          buyAddr,
         receiver:          getAddress(address),
         sellAmount:        sellAmountRaw.toString(),
         buyAmount:         buyAmountRaw.toString(),
