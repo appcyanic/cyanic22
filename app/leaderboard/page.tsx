@@ -58,6 +58,11 @@ export default function LeaderboardPage() {
   const [xFollowDone,  setXFollowDone]  = useState(false);
   const [xFollowLoading, setXFollowLoading] = useState(false);
 
+  // Sync x_follow_claimed from Supabase on load
+  useEffect(() => {
+    if (userPoints?.x_follow_claimed) setXFollowDone(true);
+  }, [userPoints?.x_follow_claimed]);
+
   // ── Load on-chain minted status ──
   useEffect(() => {
     if (!address || !publicClient || !CONTRACT_ADDRESS) return;

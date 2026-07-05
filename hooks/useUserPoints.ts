@@ -14,6 +14,7 @@ interface UserPointsData {
   total_volume_usd: number;
   referral_code: string;
   referral_count: number;
+  x_follow_claimed: boolean;
 }
 
 export function useUserPoints() {

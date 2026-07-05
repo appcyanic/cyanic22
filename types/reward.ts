@@ -37,7 +37,7 @@ export const LEVEL_COLORS: Record<Level, string> = {
 
 export const XP_REWARDS = {
   FIRST_SWAP:       500,
-  PER_SWAP:         50,
+  PER_SWAP:         100,
   AGENT_SWAP:       250,
   DAILY_SWAP:       50,
   WEEK_STREAK:      500,
