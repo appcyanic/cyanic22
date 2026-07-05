@@ -128,9 +128,10 @@ export default function ProfilePage() {
 
             <LevelBadge level={level} className="mb-3" />
 
-            <div className="grid grid-cols-3 gap-2 sm:gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
               {[
                 { label: "Total XP", value: formatXP(xp) },
+                { label: "Volume", value: `$${(userPoints?.total_volume_usd ?? 0).toLocaleString()}` },
                 { label: "Swaps", value: userPoints?.swap_count ?? 0 },
                 { label: "Streak", value: `${userPoints?.streak_days ?? 0}d 🔥` },
               ].map((stat) => (
@@ -152,31 +153,6 @@ export default function ProfilePage() {
         xpToNext={userPoints?.xp_to_next ?? 1000}
         className="mb-6"
       />
-
-      {/* Stats grid */}
-      <div className="grid grid-cols-2 gap-4 mb-6">
-        {[
-          {
-            label: "Total Volume",
-            value: `$${(userPoints?.total_volume_usd ?? 0).toLocaleString()}`,
-            sub: "All time",
-            icon: "💰",
-          },
-          {
-            label: "Referral Code",
-            value: userPoints?.referral_code ?? "—",
-            sub: `${userPoints?.referral_count ?? 0} referrals`,
-            icon: "👥",
-          },
-        ].map((item) => (
-          <div key={item.label} className="glass-card p-4">
-            <div className="text-2xl mb-2">{item.icon}</div>
-            <div className="font-bold text-text-primary font-mono">{item.value}</div>
-            <div className="text-xs text-text-muted">{item.sub}</div>
-            <div className="text-xs text-text-secondary mt-1">{item.label}</div>
-          </div>
-        ))}
-      </div>
 
       {/* Recent activity */}
       <div className="glass-card p-4">
