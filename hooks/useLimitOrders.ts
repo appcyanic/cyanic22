@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useAccount, useWalletClient, usePublicClient } from "wagmi";
-import { parseUnits, erc20Abi, maxUint256, hashTypedData, toBytes } from "viem";
+import { parseUnits, erc20Abi, maxUint256, hashTypedData } from "viem";
 import { toast } from "sonner";
 import { OrderBookApi, OrderSigningUtils, SupportedChainId, SigningScheme } from "@cowprotocol/cow-sdk";
 import type { Token } from "@/types/token";
@@ -133,23 +133,21 @@ export function useLimitOrders() {
         buyTokenBalance:   "erc20" as const,
       };
 
-      // ── Sign using eth_sign (ethsign scheme) ────────────────────
-      // ethsign is simpler: sign the raw order hash with personal_sign
-      // This avoids EIP-712 domain/type mismatch issues
+      // ── Sign using EIP-712 signTypedData ───────────────────────
       toast.loading("Sign order in wallet…", { id: toastId });
 
       const domain = await OrderSigningUtils.getDomain(CHAIN_ID);
       const types  = OrderSigningUtils.getEIP712Types();
 
-      // Compute the EIP-712 hash ourselves using viem
-      const orderHash = hashTypedData({
+      // hashTypedData for debug — actual signing via signTypedData
+      const signature = await walletClient.signTypedData({
         domain: {
-          name:              domain.name as string,
-          version:           domain.version as string,
-          chainId:           domain.chainId as number,
+          name:              String(domain.name),
+          version:           String(domain.version),
+          chainId:           Number(domain.chainId),
           verifyingContract: domain.verifyingContract as `0x${string}`,
         },
-        types: types as Parameters<typeof hashTypedData>[0]["types"],
+        types: types as Parameters<typeof walletClient.signTypedData>[0]["types"],
         primaryType: "Order",
         message: {
           sellToken:         order.sellToken,
@@ -167,21 +165,24 @@ export function useLimitOrders() {
         },
       });
 
-      // Sign the hash with eth_sign (adds \x19Ethereum Signed Message prefix)
-      const signature = await walletClient.signMessage({
-        message: { raw: toBytes(orderHash) },
-      });
-
       // ── Submit to CoW API ──────────────────────────────────────
       toast.loading("Submitting to CoW Protocol…", { id: toastId });
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const orderId = await orderBookApi.sendOrder({
+      const sendRes = await orderBookApi.sendOrder({
         ...order,
-        signingScheme: SigningScheme.ETHSIGN,
+        signingScheme: SigningScheme.EIP712,
         signature,
         from: address,
-      } as any);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any).catch(async (e: unknown) => {
+        if (e && typeof e === "object" && "body" in e) {
+          console.error("CoW API error body:", (e as { body: unknown }).body);
+        }
+        console.error("CoW sendOrder error:", e);
+        throw e;
+      });
+
+      const orderId: string = sendRes;
 
       // ── Save locally ───────────────────────────────────────────
       const newOrder: CowLimitOrder = {
