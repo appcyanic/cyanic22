@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useAccount, useWalletClient, usePublicClient } from "wagmi";
 import { parseUnits, erc20Abi, maxUint256, hashTypedData } from "viem";
 import { toast } from "sonner";
-import { OrderBookApi, OrderSigningUtils, SupportedChainId, SigningScheme } from "@cowprotocol/cow-sdk";
+import { OrderBookApi, SupportedChainId, SigningScheme } from "@cowprotocol/cow-sdk";
 import type { Token } from "@/types/token";
 
 type CowOrderStatus = "pending" | "open" | "filled" | "cancelled" | "expired";
@@ -136,18 +136,34 @@ export function useLimitOrders() {
       // ── Sign using EIP-712 signTypedData ───────────────────────
       toast.loading("Sign order in wallet…", { id: toastId });
 
-      const domain = await OrderSigningUtils.getDomain(CHAIN_ID);
-      const types  = OrderSigningUtils.getEIP712Types();
+      // Hardcode CoW Protocol domain for Base — avoids async RPC call
+      const cowDomain = {
+        name:              "Gnosis Protocol",
+        version:           "v2",
+        chainId:           8453,
+        verifyingContract: "0x9008D19f58AAbD9eD0D60971565AA8510560ab41" as `0x${string}`,
+      };
 
-      // hashTypedData for debug — actual signing via signTypedData
+      const cowTypes = {
+        Order: [
+          { name: "sellToken",         type: "address" },
+          { name: "buyToken",          type: "address" },
+          { name: "receiver",          type: "address" },
+          { name: "sellAmount",        type: "uint256" },
+          { name: "buyAmount",         type: "uint256" },
+          { name: "validTo",           type: "uint32"  },
+          { name: "appData",           type: "bytes32" },
+          { name: "feeAmount",         type: "uint256" },
+          { name: "kind",              type: "bytes32" },
+          { name: "partiallyFillable", type: "bool"    },
+          { name: "sellTokenBalance",  type: "bytes32" },
+          { name: "buyTokenBalance",   type: "bytes32" },
+        ],
+      } as const;
+
       const signature = await walletClient.signTypedData({
-        domain: {
-          name:              String(domain.name),
-          version:           String(domain.version),
-          chainId:           Number(domain.chainId),
-          verifyingContract: domain.verifyingContract as `0x${string}`,
-        },
-        types: types as Parameters<typeof walletClient.signTypedData>[0]["types"],
+        domain:      cowDomain,
+        types:       cowTypes,
         primaryType: "Order",
         message: {
           sellToken:         order.sellToken,
@@ -223,13 +239,17 @@ export function useLimitOrders() {
   const cancelOrder = useCallback(async (orderId: string) => {
     if (!address || !walletClient) return;
     try {
-      const domain = await OrderSigningUtils.getDomain(CHAIN_ID);
       const types  = {
         OrderCancellations: [{ name: "orderUids", type: "bytes[]" }],
       };
 
       const signature = await walletClient.signTypedData({
-        domain:      domain as Parameters<typeof walletClient.signTypedData>[0]["domain"],
+        domain: {
+          name:              "Gnosis Protocol",
+          version:           "v2",
+          chainId:           8453,
+          verifyingContract: "0x9008D19f58AAbD9eD0D60971565AA8510560ab41" as `0x${string}`,
+        },
         types,
         primaryType: "OrderCancellations",
         message:     { orderUids: [orderId as `0x${string}`] },
