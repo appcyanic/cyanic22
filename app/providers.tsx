@@ -7,6 +7,7 @@ import { ThemeProvider, useTheme } from "next-themes";
 import { useState, useEffect } from "react";
 import { wagmiConfig } from "@/lib/wagmi";
 import { Toaster } from "sonner";
+import { base } from "wagmi/chains";
 
 import "@rainbow-me/rainbowkit/styles.css";
 
@@ -21,6 +22,7 @@ function RainbowWrapper({ children }: { children: React.ReactNode }) {
 
   return (
     <RainbowKitProvider
+      initialChain={base}
       theme={
         isDark
           ? darkTheme({

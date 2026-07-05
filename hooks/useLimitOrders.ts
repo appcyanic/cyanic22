@@ -6,36 +6,23 @@ import { parseUnits } from "viem";
 import { toast } from "sonner";
 import type { LimitOrder } from "@/types/limit-order";
 import type { Token } from "@/types/token";
-import { formatTokenAmount } from "@/lib/tokens";
 
 const PRICE_POLL_INTERVAL = 15_000; // 15s
 
-/* fetch current market price for a token pair via our /api/price endpoint */
 async function fetchCurrentPrice(
   sellToken: string,
   buyToken: string,
   sellAmount: string
-): Promise<{ exchangeRate: number; sellRate: number; buyRate: number } | null> {
+): Promise<{ exchangeRate: number } | null> {
   try {
-    const params = new URLSearchParams({
-      sellToken,
-      buyToken,
-      sellAmount,
-      chainId: "8453",
-    });
+    const params = new URLSearchParams({ sellToken, buyToken, sellAmount, chainId: "8453" });
     const res = await fetch(`/api/price?${params}`);
     if (!res.ok) return null;
     const data = await res.json();
     const sellRate = parseFloat(data.sellTokenToEthRate || "0");
     const buyRate  = parseFloat(data.buyTokenToEthRate  || "0");
-    // Calculate exchange rate: how many buyTokens per 1 sellToken
-    // sellAmount is already in raw units, so we divide by its decimals
-    // data.buyAmount is also in raw units
-    const rate =
-      buyRate > 0 && sellRate > 0
-        ? sellRate / buyRate
-        : 0;
-    return { exchangeRate: rate, sellRate, buyRate };
+    if (sellRate <= 0 || buyRate <= 0) return null;
+    return { exchangeRate: sellRate / buyRate };
   } catch {
     return null;
   }
@@ -47,17 +34,26 @@ export function useLimitOrders() {
   const publicClient             = usePublicClient();
 
   const [orders, setOrders] = useState<LimitOrder[]>([]);
+  // Keep a ref so interval callbacks always see latest orders (avoid stale closure)
+  const ordersRef  = useRef<LimitOrder[]>([]);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Sync ref whenever state changes
+  useEffect(() => { ordersRef.current = orders; }, [orders]);
 
   /* ── load orders from localStorage on mount ── */
   useEffect(() => {
-    if (!address) return;
+    if (!address) { setOrders([]); return; }
     try {
       const stored = localStorage.getItem(`cyanic_limit_orders_${address}`);
       if (stored) {
         const parsed: LimitOrder[] = JSON.parse(stored);
-        // only keep active orders
-        setOrders(parsed.filter(o => o.status === "pending"));
+        const pending = parsed.filter(o => o.status === "pending");
+        setOrders(pending);
+        ordersRef.current = pending;
+      } else {
+        setOrders([]);
+        ordersRef.current = [];
       }
     } catch { /* ignore */ }
   }, [address]);
@@ -65,12 +61,11 @@ export function useLimitOrders() {
   /* ── persist orders ── */
   const saveOrders = useCallback((newOrders: LimitOrder[]) => {
     if (!address) return;
-    setOrders(newOrders);
+    const pending = newOrders.filter(o => o.status === "pending");
+    setOrders(pending);
+    ordersRef.current = pending;
     try {
-      localStorage.setItem(
-        `cyanic_limit_orders_${address}`,
-        JSON.stringify(newOrders)
-      );
+      localStorage.setItem(`cyanic_limit_orders_${address}`, JSON.stringify(pending));
     } catch { /* ignore */ }
   }, [address]);
 
@@ -96,17 +91,17 @@ export function useLimitOrders() {
       createdAt:    Date.now(),
       expiresAt:    Date.now() + expiresInHours * 3_600_000,
     };
-    saveOrders([...orders, order]);
+    const next = [...ordersRef.current, order];
+    saveOrders(next);
     toast.success(`Limit order created: sell ${sellAmount} ${sellToken.symbol} at ${targetPrice} ${buyToken.symbol}`);
     return order.id;
-  }, [orders, saveOrders]);
+  }, [saveOrders]);
 
   /* ── cancel an order ── */
   const cancelOrder = useCallback((id: string) => {
-    saveOrders(orders.map(o => o.id === id ? { ...o, status: "cancelled" as const } : o)
-               .filter(o => o.status === "pending"));
+    saveOrders(ordersRef.current.filter(o => o.id !== id));
     toast.info("Limit order cancelled");
-  }, [orders, saveOrders]);
+  }, [saveOrders]);
 
   /* ── execute swap for a triggered order ── */
   const executeOrder = useCallback(async (order: LimitOrder) => {
@@ -115,12 +110,12 @@ export function useLimitOrders() {
     try {
       const sellAmountRaw = parseUnits(order.sellAmount, order.sellToken.decimals).toString();
       const params = new URLSearchParams({
-        sellToken:    order.sellToken.address,
-        buyToken:     order.buyToken.address,
-        sellAmount:   sellAmountRaw,
-        slippageBps:  order.slippageBps.toString(),
-        taker:        address,
-        chainId:      "8453",
+        sellToken:   order.sellToken.address,
+        buyToken:    order.buyToken.address,
+        sellAmount:  sellAmountRaw,
+        slippageBps: order.slippageBps.toString(),
+        taker:       address,
+        chainId:     "8453",
       });
 
       const res = await fetch(`/api/quote?${params}`);
@@ -128,12 +123,11 @@ export function useLimitOrders() {
       const quote = await res.json();
 
       const txData = quote.transaction || {
-        to: quote.to, data: quote.data,
-        gas: quote.gas, value: quote.value,
+        to: quote.to, data: quote.data, gas: quote.gas, value: quote.value,
       };
 
       toast.loading(`Executing limit order: ${order.sellAmount} ${order.sellToken.symbol} → ${order.buyToken.symbol}`, {
-        id: `limit-${order.id}`
+        id: `limit-${order.id}`,
       });
 
       const txHash = await walletClient.sendTransaction({
@@ -147,9 +141,9 @@ export function useLimitOrders() {
 
       if (receipt.status === "success") {
         toast.success(`✅ Limit order filled! ${order.sellAmount} ${order.sellToken.symbol} → ${order.buyToken.symbol}`, {
-          id: `limit-${order.id}`, duration: 6000
+          id: `limit-${order.id}`, duration: 6000,
         });
-        saveOrders(orders.filter(o => o.id !== order.id));
+        saveOrders(ordersRef.current.filter(o => o.id !== order.id));
       } else {
         throw new Error("Transaction failed");
       }
@@ -158,25 +152,26 @@ export function useLimitOrders() {
       if (!msg.includes("User rejected")) {
         toast.error(`Limit order execution failed: ${msg}`, { id: `limit-${order.id}` });
       }
-      // keep order as pending on failure
     }
-  }, [address, walletClient, publicClient, orders, saveOrders]);
+  }, [address, walletClient, publicClient, saveOrders]);
 
   /* ── price monitoring loop ── */
   useEffect(() => {
     if (intervalRef.current) clearInterval(intervalRef.current);
-    if (!isConnected || orders.length === 0) return;
+    if (!isConnected) return;
 
     const checkPrices = async () => {
-      const now = Date.now();
-      const updated = [...orders];
-      let changed = false;
+      const current = ordersRef.current;
+      if (current.length === 0) return;
+
+      const now     = Date.now();
+      const updated = current.map(o => ({ ...o }));
+      let changed   = false;
 
       for (let i = 0; i < updated.length; i++) {
         const order = updated[i];
         if (order.status !== "pending") continue;
 
-        // check expiry
         if (now > order.expiresAt) {
           updated[i] = { ...order, status: "expired" };
           toast.info(`Limit order expired: ${order.sellAmount} ${order.sellToken.symbol}`);
@@ -184,9 +179,8 @@ export function useLimitOrders() {
           continue;
         }
 
-        // fetch current price
         try {
-          const sellAmountRaw = parseUnits("1", order.sellToken.decimals).toString(); // use 1 unit for rate
+          const sellAmountRaw = parseUnits("1", order.sellToken.decimals).toString();
           const priceData = await fetchCurrentPrice(
             order.sellToken.address,
             order.buyToken.address,
@@ -200,11 +194,10 @@ export function useLimitOrders() {
           updated[i] = { ...order, currentPrice: currentRate.toFixed(6) };
           changed = true;
 
-          // check if target reached (sell when price >= target)
           if (currentRate >= targetRate) {
             toast.info(`🎯 Limit order triggered! Current: ${currentRate.toFixed(4)} ≥ Target: ${targetRate}`);
             await executeOrder(order);
-            return; // re-check will happen on next interval
+            return;
           }
         } catch { /* ignore individual errors */ }
       }
@@ -214,13 +207,13 @@ export function useLimitOrders() {
       }
     };
 
-    checkPrices(); // immediate check
+    checkPrices();
     intervalRef.current = setInterval(checkPrices, PRICE_POLL_INTERVAL);
 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [isConnected, orders, executeOrder, saveOrders]);
+  }, [isConnected, executeOrder, saveOrders]);
 
   return {
     orders,

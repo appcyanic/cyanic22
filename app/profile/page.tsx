@@ -3,7 +3,7 @@
 import { useAccount } from "wagmi";
 import { motion } from "framer-motion";
 import { ExternalLink, Copy, CheckCircle2, User } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ConnectButton } from "@/components/ui/ConnectButton";
 import { ProgressBar } from "@/components/rewards/ProgressBar";
 import { LevelBadge } from "@/components/leaderboard/RankBadge";
@@ -11,11 +11,40 @@ import { useUserPoints } from "@/hooks/useUserPoints";
 import { shortenAddress } from "@/lib/utils";
 import { formatXP, getLevelEmoji } from "@/lib/points";
 import { LEVEL_COLORS } from "@/types/reward";
+import { supabase } from "@/lib/supabase";
+
+interface SwapRecord {
+  id: string;
+  amount: number;
+  reason: string;
+  created_at: string;
+}
 
 export default function ProfilePage() {
   const { address, isConnected } = useAccount();
   const { data: userPoints } = useUserPoints();
   const [addressCopied, setAddressCopied] = useState(false);
+  const [swapHistory, setSwapHistory] = useState<SwapRecord[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
+  // Fetch swap history from xp_transactions
+  useEffect(() => {
+    if (!address) return;
+    setHistoryLoading(true);
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from("xp_transactions")
+          .select("id, amount, reason, created_at")
+          .eq("wallet_address", address.toLowerCase())
+          .eq("reason", "swap")
+          .order("created_at", { ascending: false })
+          .limit(10);
+        setSwapHistory((data as SwapRecord[]) ?? []);
+      } catch { /* ignore */ }
+      finally { setHistoryLoading(false); }
+    })();
+  }, [address]);
 
   const copyAddress = async () => {
     if (!address) return;
@@ -154,11 +183,36 @@ export default function ProfilePage() {
         <h3 className="font-semibold mb-4 flex items-center gap-2">
           📋 Recent Swaps
         </h3>
-        <div className="flex flex-col items-center justify-center py-8 gap-2">
-          <span className="text-2xl">🔄</span>
-          <p className="text-sm text-text-secondary font-medium">No swaps yet</p>
-          <p className="text-xs text-text-muted">Your swap history will appear here after your first transaction.</p>
-        </div>
+        {historyLoading ? (
+          <div className="space-y-2">
+            {[1,2,3].map(i => <div key={i} className="shimmer h-10 rounded-lg" />)}
+          </div>
+        ) : swapHistory.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-8 gap-2">
+            <span className="text-2xl">🔄</span>
+            <p className="text-sm text-text-secondary font-medium">No swaps yet</p>
+            <p className="text-xs text-text-muted">Your swap history will appear here after your first transaction.</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {swapHistory.map(tx => (
+              <div key={tx.id} className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">🔄</span>
+                  <div>
+                    <div className="text-xs font-semibold text-text-primary">Swap</div>
+                    <div className="text-xs text-text-muted">
+                      {new Date(tx.created_at).toLocaleDateString("en-US", {
+                        month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
+                      })}
+                    </div>
+                  </div>
+                </div>
+                <span className="text-xs font-bold text-success">+{tx.amount} XP</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
