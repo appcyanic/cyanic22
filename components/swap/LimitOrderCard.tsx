@@ -4,33 +4,35 @@ import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Target, Plus, Trash2, Clock, Loader2, AlertTriangle,
-  TrendingUp, TrendingDown, RefreshCw
+  TrendingUp, TrendingDown, RefreshCw, CheckCircle2, ExternalLink,
 } from "lucide-react";
 import { useAccount } from "wagmi";
 import { parseUnits, formatUnits } from "viem";
 import { ConnectButton } from "@/components/ui/ConnectButton";
 import { TokenSelector } from "./TokenSelector";
 import { TokenLogo } from "@/components/ui/TokenLogo";
-import { useLimitOrders } from "@/hooks/useLimitOrders";
+import { useLimitOrders, type CowLimitOrder } from "@/hooks/useLimitOrders";
 import { useTokenBalance } from "@/hooks/useTokenBalance";
 import { BASE_TOKENS } from "@/lib/tokens";
 import type { Token } from "@/types/token";
-import type { LimitOrder } from "@/types/limit-order";
 
 const EXPIRY_OPTIONS = [
-  { label: "1 hour",   value: 1 },
-  { label: "12 hours", value: 12 },
-  { label: "24 hours", value: 24 },
+  { label: "1 hour",   value: 1   },
+  { label: "12 hours", value: 12  },
+  { label: "24 hours", value: 24  },
   { label: "7 days",   value: 168 },
+  { label: "30 days",  value: 720 },
 ];
 
 /* ── Order Row ── */
-function OrderRow({ order, onCancel }: { order: LimitOrder; onCancel: (id: string) => void }) {
-  const current  = parseFloat(order.currentPrice || "0");
-  const target   = parseFloat(order.targetPrice);
-  const progress = target > 0 && current > 0 ? Math.min((current / target) * 100, 100) : 0;
-  const isClose  = progress >= 90;
-  const isFilled = progress >= 100;
+function OrderRow({ order, onCancel }: { order: CowLimitOrder; onCancel: (id: string) => void }) {
+  const isFilled    = order.status === "filled";
+  const isCancelled = order.status === "cancelled";
+  const isExpired   = order.status === "expired";
+  const isActive    = order.status === "open" || order.status === "pending";
+
+  const expiresIn = order.validTo - Date.now();
+  const hoursLeft = Math.max(0, Math.floor(expiresIn / 3_600_000));
 
   return (
     <motion.div
@@ -41,8 +43,8 @@ function OrderRow({ order, onCancel }: { order: LimitOrder; onCancel: (id: strin
       className={`rounded-xl border p-3 ${
         isFilled
           ? "border-success/40 bg-success/5"
-          : isClose
-          ? "border-warning/40 bg-warning/5"
+          : isExpired || isCancelled
+          ? "border-border/40 bg-bg-tertiary/50 opacity-60"
           : "border-border bg-bg-tertiary"
       }`}
     >
@@ -57,79 +59,71 @@ function OrderRow({ order, onCancel }: { order: LimitOrder; onCancel: (id: strin
           <span className="text-xs font-semibold text-text-primary">
             {order.sellAmount} {order.sellToken.symbol}
           </span>
-          <span className="px-1.5 py-0.5 rounded-full bg-base-blue/10 text-base-blue text-xs">
-            Sell
+          <span className={`px-1.5 py-0.5 rounded-full text-xs font-medium ${
+            isFilled    ? "bg-success/15 text-success" :
+            isExpired   ? "bg-error/15 text-error" :
+            isCancelled ? "bg-text-muted/15 text-text-muted" :
+                          "bg-base-blue/10 text-base-blue"
+          }`}>
+            {isFilled ? "Filled" : isExpired ? "Expired" : isCancelled ? "Cancelled" : "Active"}
           </span>
         </div>
-        <button
-          onClick={() => onCancel(order.id)}
-          className="p-1 rounded-lg hover:bg-error/10 text-text-muted hover:text-error transition-all"
-          title="Cancel order"
-        >
-          <Trash2 className="w-3.5 h-3.5" />
-        </button>
+        {isActive && (
+          <button
+            onClick={() => onCancel(order.id)}
+            className="p-1 rounded-lg hover:bg-error/10 text-text-muted hover:text-error transition-all"
+            title="Cancel order"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        )}
+        {isFilled && order.txHash && (
+          <a
+            href={`https://basescan.org/tx/${order.txHash}`}
+            target="_blank" rel="noopener noreferrer"
+            className="p-1 rounded-lg hover:bg-success/10 text-success transition-all"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+          </a>
+        )}
       </div>
 
-      {/* Target vs current price */}
+      {/* Target price */}
       <div className="flex items-center justify-between text-xs mb-2">
         <div className="flex items-center gap-1 text-text-muted">
           <Target className="w-3 h-3" />
-          <span>Target:</span>
+          <span>Min receive:</span>
           <span className="font-mono text-text-primary font-semibold">
-            {parseFloat(order.targetPrice).toFixed(4)} {order.buyToken.symbol}
+            {parseFloat(order.buyAmount).toFixed(4)} {order.buyToken.symbol}
           </span>
         </div>
         <div className="flex items-center gap-1 text-text-muted">
-          {current > 0 && current >= target
-            ? <TrendingUp className="w-3 h-3 text-success" />
-            : <TrendingDown className="w-3 h-3" />
-          }
-          <span>Now:</span>
-          <span className={`font-mono font-semibold ${
-            current >= target ? "text-success" : isClose ? "text-warning" : "text-text-secondary"
-          }`}>
-            {current > 0 ? current.toFixed(4) : "—"} {order.buyToken.symbol}
-          </span>
+          <span>@ {parseFloat(order.targetPrice).toFixed(4)} {order.buyToken.symbol}/{order.sellToken.symbol}</span>
         </div>
       </div>
 
-      {/* Progress bar */}
-      <div className="h-1.5 bg-bg-secondary rounded-full overflow-hidden mb-2">
-        <motion.div
-          className="h-full rounded-full"
-          style={{
-            background: isFilled
-              ? "var(--success)"
-              : isClose
-              ? "var(--warning, #f59e0b)"
-              : "var(--base-blue)"
-          }}
-          animate={{ width: `${progress}%` }}
-          transition={{ duration: 0.5 }}
-        />
-      </div>
-      <div className="flex justify-between text-xs text-text-muted mb-1">
-        <span>{progress.toFixed(0)}% to target</span>
-        {isClose && !isFilled && (
-          <span className="text-warning font-medium flex items-center gap-1">
-            <AlertTriangle className="w-3 h-3" /> Almost there!
+      {/* Expiry / status */}
+      {isActive && (
+        <div className="flex items-center gap-1 text-xs text-text-muted">
+          <Clock className="w-3 h-3" />
+          <span>
+            {hoursLeft > 24
+              ? `Expires in ${Math.floor(hoursLeft / 24)}d ${hoursLeft % 24}h`
+              : `Expires in ${hoursLeft}h`}
           </span>
-        )}
-        {isFilled && (
-          <span className="text-success font-medium">🎯 Executing...</span>
-        )}
-      </div>
+          <span className="ml-auto flex items-center gap-1 text-success">
+            <div className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
+            CoW Protocol monitoring
+          </span>
+        </div>
+      )}
 
-      {/* Expiry */}
-      <div className="flex items-center gap-1 text-xs text-text-muted">
-        <Clock className="w-3 h-3" />
-        <span>
-          Expires {new Date(order.expiresAt).toLocaleString("en-US", {
-            month: "short", day: "numeric",
-            hour: "2-digit", minute: "2-digit",
-          })}
-        </span>
-      </div>
+      {isFilled && (
+        <div className="flex items-center gap-1 text-xs text-success">
+          <CheckCircle2 className="w-3 h-3" />
+          Order filled by CoW Protocol solver
+        </div>
+      )}
     </motion.div>
   );
 }
@@ -137,81 +131,64 @@ function OrderRow({ order, onCancel }: { order: LimitOrder; onCancel: (id: strin
 /* ── Main Component ── */
 export function LimitOrderCard() {
   const { address, isConnected } = useAccount();
-  const { orders, createOrder, cancelOrder } = useLimitOrders();
+  const { orders, createOrder, cancelOrder, isLoading } = useLimitOrders();
 
   const [sellToken,   setSellToken]   = useState<Token>(BASE_TOKENS.ETH);
   const [buyToken,    setBuyToken]    = useState<Token>(BASE_TOKENS.USDC);
   const [sellAmount,  setSellAmount]  = useState("");
   const [targetPrice, setTargetPrice] = useState("");
   const [expiryHours, setExpiryHours] = useState(24);
+  const [showForm,    setShowForm]    = useState(true);
 
   const { balanceRaw: sellBalanceRaw, formatted: sellBalanceFormatted } =
     useTokenBalance(sellToken?.address, address, sellToken?.decimals ?? 18);
-  const [slippage,    setSlippage]    = useState(0.5);
-  const [isCreating,  setIsCreating]  = useState(false);
-  const [showForm,    setShowForm]    = useState(true);
 
-  // Current market price for the pair
-  const [marketPrice,    setMarketPrice]    = useState<string | null>(null);
-  const [priceLoading,   setPriceLoading]   = useState(false);
-  const marketPriceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Market price
+  const [marketPrice,  setMarketPrice]  = useState<string | null>(null);
+  const [priceLoading, setPriceLoading] = useState(false);
+  const priceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Fetch market price whenever tokens change
   useEffect(() => {
     setMarketPrice(null);
-    if (marketPriceTimer.current) clearTimeout(marketPriceTimer.current);
-    marketPriceTimer.current = setTimeout(async () => {
+    if (priceTimer.current) clearTimeout(priceTimer.current);
+    priceTimer.current = setTimeout(async () => {
       setPriceLoading(true);
       try {
-        // Use 1 sellToken unit to get rate
         const oneUnit = parseUnits("1", sellToken.decimals).toString();
-        const params = new URLSearchParams({
-          sellToken:  sellToken.address,
-          buyToken:   buyToken.address,
-          sellAmount: oneUnit,
-          chainId:    "8453",
+        const params  = new URLSearchParams({
+          sellToken: sellToken.address, buyToken: buyToken.address,
+          sellAmount: oneUnit, chainId: "8453",
         });
         const res  = await fetch(`/api/price?${params}`);
         const data = await res.json();
         if (res.ok) {
-          const sellRate = parseFloat(data.sellTokenToEthRate || "0");
-          const buyRate  = parseFloat(data.buyTokenToEthRate  || "0");
-          if (sellRate > 0 && buyRate > 0) {
-            setMarketPrice((sellRate / buyRate).toFixed(6));
-          }
+          const sr = parseFloat(data.sellTokenToEthRate || "0");
+          const br = parseFloat(data.buyTokenToEthRate  || "0");
+          if (sr > 0 && br > 0) setMarketPrice((sr / br).toFixed(6));
         }
       } catch { /* ignore */ }
       finally { setPriceLoading(false); }
-    }, 500);
-    return () => { if (marketPriceTimer.current) clearTimeout(marketPriceTimer.current); };
+    }, 600);
+    return () => { if (priceTimer.current) clearTimeout(priceTimer.current); };
   }, [sellToken.address, buyToken.address, sellToken.decimals]);
 
   const handleCreate = async () => {
     if (!sellAmount || !targetPrice || parseFloat(sellAmount) <= 0 || parseFloat(targetPrice) <= 0) return;
-    setIsCreating(true);
-    try {
-      createOrder(
-        sellToken,
-        buyToken,
-        sellAmount,
-        targetPrice,
-        Math.round(slippage * 100),
-        expiryHours
-      );
+    const id = await createOrder(sellToken, buyToken, sellAmount, targetPrice, expiryHours);
+    if (id) {
       setSellAmount("");
       setTargetPrice("");
       setShowForm(false);
-    } finally {
-      setIsCreating(false);
     }
-  };
-
-  const fillMarketPrice = () => {
-    if (marketPrice) setTargetPrice(marketPrice);
   };
 
   const aboveMarket = marketPrice && targetPrice
     ? parseFloat(targetPrice) > parseFloat(marketPrice)
+    : null;
+
+  // Estimated receive amount
+  const estReceive = sellAmount && targetPrice && parseFloat(sellAmount) > 0 && parseFloat(targetPrice) > 0
+    ? (parseFloat(sellAmount) * parseFloat(targetPrice)).toFixed(4)
     : null;
 
   if (!isConnected) {
@@ -260,26 +237,24 @@ export function LimitOrderCard() {
             <div className="rounded-xl border border-border bg-bg-tertiary p-3">
               <div className="flex items-center justify-between mb-1.5">
                 <span className="text-xs text-text-muted font-medium">You Sell</span>
-                {isConnected && (
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs text-text-muted font-mono">
-                      {sellBalanceFormatted} {sellToken?.symbol}
-                    </span>
-                    {[25, 50, 75, 100].map(pct => (
-                      <button
-                        key={pct}
-                        onClick={() => {
-                          if (!sellBalanceRaw || !sellToken) return;
-                          const val = parseFloat(formatUnits(sellBalanceRaw, sellToken.decimals)) * pct / 100;
-                          setSellAmount(val.toFixed(6));
-                        }}
-                        className="text-xs text-base-blue hover:text-base-blue-light font-semibold px-1.5 py-1 rounded-lg min-h-[28px] hover:bg-base-blue/10 transition-all"
-                      >
-                        {pct === 100 ? "MAX" : `${pct}%`}
-                      </button>
-                    ))}
-                  </div>
-                )}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-text-muted font-mono">
+                    {sellBalanceFormatted} {sellToken?.symbol}
+                  </span>
+                  {[25, 50, 75, 100].map(pct => (
+                    <button
+                      key={pct}
+                      onClick={() => {
+                        if (!sellBalanceRaw || !sellToken) return;
+                        const val = parseFloat(formatUnits(sellBalanceRaw, sellToken.decimals)) * pct / 100;
+                        setSellAmount(val.toFixed(6));
+                      }}
+                      className="text-xs text-base-blue hover:text-base-blue-light font-semibold px-1.5 py-1 rounded-lg min-h-[28px] hover:bg-base-blue/10 transition-all"
+                    >
+                      {pct === 100 ? "MAX" : `${pct}%`}
+                    </button>
+                  ))}
+                </div>
               </div>
               <div className="flex items-center gap-3">
                 <input
@@ -289,18 +264,7 @@ export function LimitOrderCard() {
                   className="flex-1 bg-transparent text-2xl font-semibold text-text-primary
                              placeholder:text-text-muted outline-none min-w-0"
                 />
-                <TokenSelector value={sellToken} onChange={setSellToken} excludeToken={buyToken} />
-              </div>
-            </div>
-
-            {/* Receive token */}
-            <div className="rounded-xl border border-border bg-bg-tertiary p-3">
-              <span className="text-xs text-text-muted font-medium block mb-1.5">You Receive</span>
-              <div className="flex items-center gap-3">
-                <div className="flex-1 text-text-muted text-sm">
-                  (calculated at execution)
-                </div>
-                <TokenSelector value={buyToken} onChange={setBuyToken} excludeToken={sellToken} />
+                <TokenSelector value={sellToken} onChange={t => { setSellToken(t); setSellAmount(""); }} excludeToken={buyToken} />
               </div>
             </div>
 
@@ -308,17 +272,15 @@ export function LimitOrderCard() {
             <div className="rounded-xl border border-border bg-bg-tertiary p-3">
               <div className="flex items-center justify-between mb-1.5">
                 <span className="text-xs text-text-muted font-medium">
-                  Execute when 1 {sellToken.symbol} reaches
+                  When 1 {sellToken.symbol} =
                 </span>
-                {/* Market price info */}
                 <div className="flex items-center gap-1.5">
                   {priceLoading ? (
                     <RefreshCw className="w-3 h-3 text-text-muted animate-spin" />
                   ) : marketPrice ? (
                     <button
-                      onClick={fillMarketPrice}
+                      onClick={() => setTargetPrice(marketPrice)}
                       className="text-xs text-text-muted hover:text-base-blue transition-colors"
-                      title="Click to use market price"
                     >
                       Market: <span className="font-mono">{parseFloat(marketPrice).toFixed(4)}</span>
                     </button>
@@ -341,70 +303,66 @@ export function LimitOrderCard() {
 
               {/* Above/below market indicator */}
               {targetPrice && marketPrice && (
-                <div className={`mt-1.5 text-xs flex items-center gap-1 ${
-                  aboveMarket ? "text-success" : "text-warning"
-                }`}>
+                <div className={`mt-1.5 text-xs flex items-center gap-1 ${aboveMarket ? "text-success" : "text-warning"}`}>
                   {aboveMarket
-                    ? <><TrendingUp className="w-3 h-3" /> {((parseFloat(targetPrice) / parseFloat(marketPrice) - 1) * 100).toFixed(1)}% above market — sells when price rises</>
-                    : <><TrendingDown className="w-3 h-3" /> {((1 - parseFloat(targetPrice) / parseFloat(marketPrice)) * 100).toFixed(1)}% below market — will execute soon</>
+                    ? <><TrendingUp className="w-3 h-3" /> {((parseFloat(targetPrice) / parseFloat(marketPrice) - 1) * 100).toFixed(1)}% above market</>
+                    : <><AlertTriangle className="w-3 h-3" /> {((1 - parseFloat(targetPrice) / parseFloat(marketPrice)) * 100).toFixed(1)}% below market — executes immediately</>
                   }
                 </div>
               )}
             </div>
 
-            {/* Options row */}
-            <div className="flex gap-2">
-              {/* Expiry */}
-              <div className="flex-1 rounded-xl border border-border bg-bg-tertiary p-2.5">
-                <span className="text-xs text-text-muted block mb-1">Expires in</span>
-                <select
-                  value={expiryHours}
-                  onChange={e => setExpiryHours(Number(e.target.value))}
-                  className="w-full bg-transparent text-sm font-medium text-text-primary outline-none cursor-pointer"
-                >
-                  {EXPIRY_OPTIONS.map(opt => (
-                    <option
-                      key={opt.value} value={opt.value}
-                      style={{ background: "var(--bg-tertiary)", color: "var(--text-primary)" }}
-                    >
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
+            {/* You Receive (estimated) */}
+            <div className="rounded-xl border border-border bg-bg-tertiary p-3">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs text-text-muted font-medium">You Receive (min)</span>
               </div>
-
-              {/* Slippage */}
-              <div className="flex-1 rounded-xl border border-border bg-bg-tertiary p-2.5">
-                <span className="text-xs text-text-muted block mb-1">Slippage</span>
-                <div className="relative">
-                  <input
-                    type="number" min="0.1" max="5" step="0.1"
-                    value={slippage}
-                    onChange={e => setSlippage(Number(e.target.value))}
-                    className="w-full bg-transparent text-sm font-medium text-text-primary outline-none pr-4"
-                  />
-                  <span className="absolute right-0 top-1/2 -translate-y-1/2 text-text-muted text-xs">%</span>
-                </div>
+              <div className="flex items-center gap-3">
+                <span className="flex-1 text-2xl font-semibold text-text-primary">
+                  {estReceive ?? <span className="text-text-muted">0</span>}
+                </span>
+                <TokenSelector value={buyToken} onChange={setBuyToken} excludeToken={sellToken} />
               </div>
             </div>
 
-            {/* Info box */}
-            <div className="px-3 py-2 rounded-lg bg-base-blue/8 border border-base-blue/20 text-xs text-text-secondary">
-              <strong className="text-base-blue">How it works:</strong> Price is checked every 15 seconds.
-              When 1 {sellToken.symbol} ≥ your target, the swap executes automatically.
-              Keep this tab open.
+            {/* Expiry */}
+            <div className="rounded-xl border border-border bg-bg-tertiary p-2.5">
+              <span className="text-xs text-text-muted block mb-1">Expires in</span>
+              <select
+                value={expiryHours}
+                onChange={e => setExpiryHours(Number(e.target.value))}
+                className="w-full bg-transparent text-sm font-medium text-text-primary outline-none cursor-pointer"
+              >
+                {EXPIRY_OPTIONS.map(opt => (
+                  <option
+                    key={opt.value} value={opt.value}
+                    style={{ background: "var(--bg-tertiary)", color: "var(--text-primary)" }}
+                  >
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* CoW info box */}
+            <div className="px-3 py-2 rounded-lg bg-success/5 border border-success/20 text-xs text-text-secondary">
+              <strong className="text-success">Powered by CoW Protocol</strong> — order is submitted on-chain and monitored 24/7 by CoW solvers. No need to keep this tab open.
             </div>
 
             {/* CTA */}
             <button
               onClick={handleCreate}
-              disabled={!sellAmount || !targetPrice || parseFloat(sellAmount) <= 0 || parseFloat(targetPrice) <= 0 || isCreating}
+              disabled={
+                !sellAmount || !targetPrice ||
+                parseFloat(sellAmount) <= 0 || parseFloat(targetPrice) <= 0 ||
+                isLoading
+              }
               className="btn-primary w-full py-3 text-sm flex items-center justify-center gap-2"
             >
-              {isCreating ? (
-                <><Loader2 className="w-4 h-4 animate-spin" /> Creating...</>
+              {isLoading ? (
+                <><Loader2 className="w-4 h-4 animate-spin" /> Processing…</>
               ) : (
-                <><Target className="w-4 h-4" /> Create Limit Order</>
+                <><Target className="w-4 h-4" /> Create Limit Order via CoW</>
               )}
             </button>
           </motion.div>

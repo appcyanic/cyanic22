@@ -1,224 +1,333 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAccount, useWalletClient, usePublicClient } from "wagmi";
-import { parseUnits } from "viem";
+import { parseUnits, erc20Abi, maxUint256 } from "viem";
 import { toast } from "sonner";
-import type { LimitOrder } from "@/types/limit-order";
 import type { Token } from "@/types/token";
 
-const PRICE_POLL_INTERVAL = 15_000; // 15s
+// CoW Protocol order kind
+type CowOrderStatus = "pending" | "open" | "filled" | "cancelled" | "expired";
 
-async function fetchCurrentPrice(
-  sellToken: string,
-  buyToken: string,
-  sellAmount: string
-): Promise<{ exchangeRate: number } | null> {
-  try {
-    const params = new URLSearchParams({ sellToken, buyToken, sellAmount, chainId: "8453" });
-    const res = await fetch(`/api/price?${params}`);
-    if (!res.ok) return null;
-    const data = await res.json();
-    const sellRate = parseFloat(data.sellTokenToEthRate || "0");
-    const buyRate  = parseFloat(data.buyTokenToEthRate  || "0");
-    if (sellRate <= 0 || buyRate <= 0) return null;
-    return { exchangeRate: sellRate / buyRate };
-  } catch {
-    return null;
-  }
+export interface CowLimitOrder {
+  id: string;           // CoW order UID
+  sellToken: Token;
+  buyToken: Token;
+  sellAmount: string;   // human-readable
+  buyAmount: string;    // human-readable (min receive)
+  targetPrice: string;  // 1 sellToken = X buyToken
+  status: CowOrderStatus;
+  createdAt: number;
+  validTo: number;      // unix seconds
+  txHash?: string;
 }
+
+const COW_API = "https://api.cow.fi/base/api/v1";
+const COW_VAULT_RELAYER = "0xC92E8bdf79f0507f65a392b0ab4667716BFE0110" as const;
+
+// EIP-712 domain for CoW Protocol on Base
+const COW_DOMAIN = {
+  name: "Gnosis Protocol",
+  version: "v2",
+  chainId: 8453,
+  verifyingContract: "0x9008D19f58AAbD9eD0D60971565AA8510560ab41" as `0x${string}`,
+} as const;
+
+const ORDER_TYPES = {
+  Order: [
+    { name: "sellToken",         type: "address" },
+    { name: "buyToken",          type: "address" },
+    { name: "receiver",          type: "address" },
+    { name: "sellAmount",        type: "uint256" },
+    { name: "buyAmount",         type: "uint256" },
+    { name: "validTo",           type: "uint32"  },
+    { name: "appData",           type: "bytes32" },
+    { name: "feeAmount",         type: "uint256" },
+    { name: "kind",              type: "bytes32" },
+    { name: "partiallyFillable", type: "bool"    },
+    { name: "sellTokenBalance",  type: "bytes32" },
+    { name: "buyTokenBalance",   type: "bytes32" },
+  ],
+} as const;
+
+// CoW Protocol order kind hashes
+const ORDER_KIND_SELL = "0xf3b277728b3fee749481eb3e0b3b48980dbbab78659fc8fd35d39bf3532f2000" as `0x${string}`;
+const BALANCE_ERC20   = "0x5a28e9363bb942b639270062aa6bb295f434bcdfc42c97267bf003f272060dc9" as `0x${string}`;
+const APP_DATA        = "0x0000000000000000000000000000000000000000000000000000000000000000" as `0x${string}`;
 
 export function useLimitOrders() {
   const { address, isConnected } = useAccount();
   const { data: walletClient }   = useWalletClient();
   const publicClient             = usePublicClient();
 
-  const [orders, setOrders] = useState<LimitOrder[]>([]);
-  // Keep a ref so interval callbacks always see latest orders (avoid stale closure)
-  const ordersRef  = useRef<LimitOrder[]>([]);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [orders, setOrders] = useState<CowLimitOrder[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
 
-  // Sync ref whenever state changes
-  useEffect(() => { ordersRef.current = orders; }, [orders]);
-
-  /* ── load orders from localStorage on mount ── */
-  useEffect(() => {
-    if (!address) { setOrders([]); return; }
-    try {
-      const stored = localStorage.getItem(`cyanic_limit_orders_${address}`);
-      if (stored) {
-        const parsed: LimitOrder[] = JSON.parse(stored);
-        const pending = parsed.filter(o => o.status === "pending");
-        setOrders(pending);
-        ordersRef.current = pending;
-      } else {
-        setOrders([]);
-        ordersRef.current = [];
-      }
-    } catch { /* ignore */ }
-  }, [address]);
-
-  /* ── persist orders ── */
-  const saveOrders = useCallback((newOrders: LimitOrder[]) => {
+  // ── Fetch active orders from CoW API ──────────────────────────────
+  const fetchOrders = useCallback(async () => {
     if (!address) return;
-    const pending = newOrders.filter(o => o.status === "pending");
-    setOrders(pending);
-    ordersRef.current = pending;
     try {
-      localStorage.setItem(`cyanic_limit_orders_${address}`, JSON.stringify(pending));
+      const res = await fetch(`${COW_API}/account/${address}/orders?limit=20`);
+      if (!res.ok) return;
+      const data = await res.json();
+
+      // Map CoW API orders to our format — we only track what we created
+      const stored = getStoredOrders(address);
+      const storedIds = new Set(stored.map(o => o.id));
+
+      const updated: CowLimitOrder[] = data
+        .filter((o: { uid: string }) => storedIds.has(o.uid))
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .map((o: any) => {
+          const local = stored.find(s => s.id === o.uid)!;
+          return {
+            ...local,
+            status: mapCowStatus(o.status),
+            txHash: o.executionDigest ?? local.txHash,
+          };
+        });
+
+      // Include locally stored orders not yet confirmed by API
+      const apiIds = new Set(updated.map(o => o.id));
+      const pendingLocal = stored.filter(o => !apiIds.has(o.id) && o.status === "pending");
+
+      const merged = [...updated, ...pendingLocal];
+      setOrders(merged);
+      saveStoredOrders(address, merged);
     } catch { /* ignore */ }
   }, [address]);
 
-  /* ── create a new limit order ── */
-  const createOrder = useCallback((
+  useEffect(() => {
+    fetchOrders();
+    const t = setInterval(fetchOrders, 30_000);
+    return () => clearInterval(t);
+  }, [fetchOrders]);
+
+  // ── Create limit order via CoW Protocol ──────────────────────────
+  const createOrder = useCallback(async (
     sellToken: Token,
     buyToken: Token,
-    sellAmount: string,
-    targetPrice: string,
-    slippageBps: number,
+    sellAmountHuman: string,
+    targetPrice: string,     // 1 sellToken = X buyToken (human)
     expiresInHours: number
-  ) => {
-    if (!sellAmount || !targetPrice) return;
-    const order: LimitOrder = {
-      id:           crypto.randomUUID(),
-      sellToken,
-      buyToken,
-      sellAmount,
-      targetPrice,
-      currentPrice: "0",
-      slippageBps,
-      status:       "pending",
-      createdAt:    Date.now(),
-      expiresAt:    Date.now() + expiresInHours * 3_600_000,
-    };
-    const next = [...ordersRef.current, order];
-    saveOrders(next);
-    toast.success(`Limit order created: sell ${sellAmount} ${sellToken.symbol} at ${targetPrice} ${buyToken.symbol}`);
-    return order.id;
-  }, [saveOrders]);
+  ): Promise<string | undefined> => {
+    if (!address || !walletClient || !publicClient) {
+      toast.error("Connect wallet to create limit orders");
+      return;
+    }
 
-  /* ── cancel an order ── */
-  const cancelOrder = useCallback((id: string) => {
-    saveOrders(ordersRef.current.filter(o => o.id !== id));
-    toast.info("Limit order cancelled");
-  }, [saveOrders]);
-
-  /* ── execute swap for a triggered order ── */
-  const executeOrder = useCallback(async (order: LimitOrder) => {
-    if (!address || !walletClient || !publicClient) return;
+    setIsLoading(true);
+    const toastId = "cow-limit-order";
 
     try {
-      const sellAmountRaw = parseUnits(order.sellAmount, order.sellToken.decimals).toString();
-      const params = new URLSearchParams({
-        sellToken:   order.sellToken.address,
-        buyToken:    order.buyToken.address,
-        sellAmount:  sellAmountRaw,
-        slippageBps: order.slippageBps.toString(),
-        taker:       address,
-        chainId:     "8453",
-      });
+      // Convert to raw amounts
+      const sellAmountRaw = parseUnits(sellAmountHuman.replace(",", "."), sellToken.decimals);
+      const price          = parseFloat(targetPrice);
+      const buyAmountHuman = (parseFloat(sellAmountHuman) * price).toFixed(buyToken.decimals);
+      const buyAmountRaw   = parseUnits(buyAmountHuman, buyToken.decimals);
 
-      const res = await fetch(`/api/quote?${params}`);
-      if (!res.ok) throw new Error("Failed to get quote");
-      const quote = await res.json();
+      // validTo = now + hours (CoW uses unix seconds)
+      const validTo = Math.floor(Date.now() / 1000) + expiresInHours * 3600;
 
-      const txData = quote.transaction || {
-        to: quote.to, data: quote.data, gas: quote.gas, value: quote.value,
+      // ── Step 1: Approve Vault Relayer ────────────────────────────
+      const isNative = sellToken.address.toLowerCase() === "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+
+      if (!isNative) {
+        toast.loading("Checking token approval…", { id: toastId });
+        const allowance = await publicClient.readContract({
+          address: sellToken.address as `0x${string}`,
+          abi: erc20Abi,
+          functionName: "allowance",
+          args: [address, COW_VAULT_RELAYER],
+        });
+
+        if ((allowance as bigint) < sellAmountRaw) {
+          toast.loading("Approving token for CoW Protocol…", { id: toastId });
+          const approveTx = await walletClient.writeContract({
+            address: sellToken.address as `0x${string}`,
+            abi: erc20Abi,
+            functionName: "approve",
+            args: [COW_VAULT_RELAYER, maxUint256],
+          });
+          await publicClient.waitForTransactionReceipt({ hash: approveTx });
+          toast.loading("Token approved ✓ Signing order…", { id: toastId });
+        }
+      }
+
+      // ── Step 2: Sign the order via EIP-712 ──────────────────────
+      toast.loading("Sign order in wallet…", { id: toastId });
+
+      const orderMessage = {
+        sellToken:         sellToken.address as `0x${string}`,
+        buyToken:          buyToken.address  as `0x${string}`,
+        receiver:          address,
+        sellAmount:        sellAmountRaw,
+        buyAmount:         buyAmountRaw,
+        validTo:           validTo,
+        appData:           APP_DATA,
+        feeAmount:         BigInt(0),
+        kind:              ORDER_KIND_SELL,
+        partiallyFillable: false,
+        sellTokenBalance:  BALANCE_ERC20,
+        buyTokenBalance:   BALANCE_ERC20,
       };
 
-      toast.loading(`Executing limit order: ${order.sellAmount} ${order.sellToken.symbol} → ${order.buyToken.symbol}`, {
-        id: `limit-${order.id}`,
+      const signature = await walletClient.signTypedData({
+        domain:      COW_DOMAIN,
+        types:       ORDER_TYPES,
+        primaryType: "Order",
+        message:     orderMessage,
       });
 
-      const txHash = await walletClient.sendTransaction({
-        to:    txData.to    as `0x${string}`,
-        data:  txData.data  as `0x${string}`,
-        value: txData.value ? BigInt(txData.value) : BigInt(0),
-        gas:   txData.gas   ? BigInt(txData.gas)   : undefined,
+      // ── Step 3: Post order to CoW API ───────────────────────────
+      toast.loading("Submitting to CoW Protocol…", { id: toastId });
+
+      const orderPayload = {
+        sellToken:         sellToken.address.toLowerCase(),
+        buyToken:          buyToken.address.toLowerCase(),
+        receiver:          address.toLowerCase(),
+        sellAmount:        sellAmountRaw.toString(),
+        buyAmount:         buyAmountRaw.toString(),
+        validTo,
+        appData:           APP_DATA,
+        feeAmount:         "0",
+        kind:              "sell",
+        partiallyFillable: false,
+        sellTokenBalance:  "erc20",
+        buyTokenBalance:   "erc20",
+        signingScheme:     "eip712",
+        signature,
+        from:              address.toLowerCase(),
+      };
+
+      const res = await fetch(`${COW_API}/orders`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify(orderPayload),
       });
 
-      const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
+      const body = await res.json();
 
-      if (receipt.status === "success") {
-        toast.success(`✅ Limit order filled! ${order.sellAmount} ${order.sellToken.symbol} → ${order.buyToken.symbol}`, {
-          id: `limit-${order.id}`, duration: 6000,
-        });
-        saveOrders(ordersRef.current.filter(o => o.id !== order.id));
-      } else {
-        throw new Error("Transaction failed");
+      if (!res.ok) {
+        throw new Error(body.description || body.errorType || "Failed to submit order");
       }
+
+      const orderId: string = body; // CoW returns the UID as a plain string
+
+      // ── Step 4: Save locally ─────────────────────────────────────
+      const newOrder: CowLimitOrder = {
+        id:          orderId,
+        sellToken,
+        buyToken,
+        sellAmount:  sellAmountHuman,
+        buyAmount:   buyAmountHuman,
+        targetPrice,
+        status:      "pending",
+        createdAt:   Date.now(),
+        validTo:     validTo * 1000,
+      };
+
+      const existing = getStoredOrders(address);
+      const updated  = [newOrder, ...existing];
+      saveStoredOrders(address, updated);
+      setOrders(updated);
+
+      toast.success(
+        `✅ Limit order created! Will execute when 1 ${sellToken.symbol} ≥ ${targetPrice} ${buyToken.symbol}`,
+        { id: toastId, duration: 6000 }
+      );
+
+      return orderId;
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Unknown error";
-      if (!msg.includes("User rejected")) {
-        toast.error(`Limit order execution failed: ${msg}`, { id: `limit-${order.id}` });
+      if (!msg.toLowerCase().includes("rejected") && !msg.toLowerCase().includes("denied")) {
+        toast.error(`Failed to create order: ${msg}`, { id: toastId });
+      } else {
+        toast.dismiss(toastId);
       }
+    } finally {
+      setIsLoading(false);
     }
-  }, [address, walletClient, publicClient, saveOrders]);
+  }, [address, walletClient, publicClient]);
 
-  /* ── price monitoring loop ── */
-  useEffect(() => {
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    if (!isConnected) return;
+  // ── Cancel order via CoW API ──────────────────────────────────────
+  const cancelOrder = useCallback(async (orderId: string) => {
+    if (!address || !walletClient) return;
 
-    const checkPrices = async () => {
-      const current = ordersRef.current;
-      if (current.length === 0) return;
+    try {
+      // Sign cancellation
+      const cancellationMessage = { orderUid: orderId as `0x${string}` };
+      const cancellationTypes = {
+        OrderCancellations: [{ name: "orderUid", type: "bytes" }],
+      };
 
-      const now     = Date.now();
-      const updated = current.map(o => ({ ...o }));
-      let changed   = false;
+      const signature = await walletClient.signTypedData({
+        domain:      COW_DOMAIN,
+        types:       cancellationTypes,
+        primaryType: "OrderCancellations",
+        message:     cancellationMessage,
+      });
 
-      for (let i = 0; i < updated.length; i++) {
-        const order = updated[i];
-        if (order.status !== "pending") continue;
+      const res = await fetch(`${COW_API}/orders/${orderId}`, {
+        method:  "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ signature, signingScheme: "eip712" }),
+      });
 
-        if (now > order.expiresAt) {
-          updated[i] = { ...order, status: "expired" };
-          toast.info(`Limit order expired: ${order.sellAmount} ${order.sellToken.symbol}`);
-          changed = true;
-          continue;
-        }
-
-        try {
-          const sellAmountRaw = parseUnits("1", order.sellToken.decimals).toString();
-          const priceData = await fetchCurrentPrice(
-            order.sellToken.address,
-            order.buyToken.address,
-            sellAmountRaw
-          );
-          if (!priceData) continue;
-
-          const currentRate = priceData.exchangeRate;
-          const targetRate  = parseFloat(order.targetPrice);
-
-          updated[i] = { ...order, currentPrice: currentRate.toFixed(6) };
-          changed = true;
-
-          if (currentRate >= targetRate) {
-            toast.info(`🎯 Limit order triggered! Current: ${currentRate.toFixed(4)} ≥ Target: ${targetRate}`);
-            await executeOrder(order);
-            return;
-          }
-        } catch { /* ignore individual errors */ }
+      if (res.ok || res.status === 200) {
+        const updated = getStoredOrders(address).map(o =>
+          o.id === orderId ? { ...o, status: "cancelled" as const } : o
+        );
+        saveStoredOrders(address, updated);
+        setOrders(updated.filter(o => o.status !== "cancelled"));
+        toast.success("Order cancelled");
+      } else {
+        // Remove locally even if API fails
+        const updated = getStoredOrders(address).filter(o => o.id !== orderId);
+        saveStoredOrders(address, updated);
+        setOrders(updated);
+        toast.info("Order removed");
       }
+    } catch {
+      toast.error("Failed to cancel order");
+    }
+  }, [address, walletClient]);
 
-      if (changed) {
-        saveOrders(updated.filter(o => o.status === "pending"));
-      }
-    };
-
-    checkPrices();
-    intervalRef.current = setInterval(checkPrices, PRICE_POLL_INTERVAL);
-
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [isConnected, executeOrder, saveOrders]);
+  const activeOrders = orders.filter(o => o.status === "pending" || o.status === "open");
 
   return {
-    orders,
+    orders: activeOrders,
+    allOrders: orders,
     createOrder,
     cancelOrder,
-    hasActiveOrders: orders.length > 0,
+    isLoading,
+    hasActiveOrders: activeOrders.length > 0,
+    refetch: fetchOrders,
   };
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────
+
+function mapCowStatus(s: string): CowOrderStatus {
+  if (s === "fulfilled") return "filled";
+  if (s === "cancelled") return "cancelled";
+  if (s === "expired")   return "expired";
+  if (s === "open")      return "open";
+  return "pending";
+}
+
+function getStoredOrders(address: string): CowLimitOrder[] {
+  try {
+    const raw = localStorage.getItem(`cyanic_cow_orders_${address.toLowerCase()}`);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+function saveStoredOrders(address: string, orders: CowLimitOrder[]) {
+  try {
+    localStorage.setItem(
+      `cyanic_cow_orders_${address.toLowerCase()}`,
+      JSON.stringify(orders.slice(0, 50)) // keep last 50
+    );
+  } catch { /* ignore */ }
 }
