@@ -1,23 +1,9 @@
-import { paymentMiddleware } from "x402-next";
+import { NextRequest, NextResponse } from "next/server";
 
-const payTo = (process.env.X402_PAY_TO_ADDRESS || "0x0000000000000000000000000000000000000000") as `0x${string}`;
-const network = (process.env.X402_NETWORK || "base-sepolia") as "base" | "base-sepolia";
-
-export const middleware = paymentMiddleware(
-  payTo,
-  {
-    "/api/agent": {
-      price: "$0.01",
-      network,
-      config: {
-        description: "Cyanic AI Agent — DeFi assistant for Base",
-        maxTimeoutSeconds: 120,
-      },
-    },
-  }
-);
-
-export const runtime = "nodejs";
+// x402 payment middleware temporarily disabled — re-enable after build issue resolved
+export function middleware(_req: NextRequest) {
+  return NextResponse.next();
+}
 
 export const config = {
   matcher: ["/api/agent"],

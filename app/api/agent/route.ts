@@ -1,3 +1,5 @@
+import { streamText } from "ai";
+import { anthropic } from "@ai-sdk/anthropic";
 import { NextRequest, NextResponse } from "next/server";
 
 // Use Upstash Redis if configured, otherwise fallback to in-memory
@@ -62,9 +64,7 @@ Response rules:
 - Never give definitive investment advice
 - Use clear formatting with bullet points when listing multiple items`;
 
-export const runtime = "nodejs";
-
-export async function POST(req: NextRequest): Promise<NextResponse | Response> {
+export async function POST(req: NextRequest): Promise<NextResponse> {
   const xff = req.headers.get("x-forwarded-for");
   const ip  = xff ? xff.split(",")[0].trim() : "unknown";
   const { allowed, remaining } = await checkRateLimit(ip);
@@ -89,83 +89,14 @@ export async function POST(req: NextRequest): Promise<NextResponse | Response> {
     .filter(m => m.role && m.content && typeof m.content === "string")
     .map(m => ({ role: m.role as "user" | "assistant", content: m.content.slice(0, 2000) }));
 
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json({ error: "AI service not configured" }, { status: 503 });
-  }
-
-  // Call OpenRouter with streaming
-  const upstream = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-      "HTTP-Referer": process.env.NEXT_PUBLIC_BASE_URL ?? "https://cyanic.vercel.app",
-      "X-Title": "Cyanic DEX Aggregator",
-    },
-    body: JSON.stringify({
-      model: "z-ai/glm-4.5",
-      messages: [
-        { role: "system", content: systemPrompt },
-        ...messages,
-      ],
-      max_tokens: 1024,
-      stream: true,
-    }),
+  const result = await streamText({
+    model: anthropic("claude-haiku-4-5"),
+    system: systemPrompt,
+    messages,
+    maxTokens: 1024,
   });
 
-  if (!upstream.ok) {
-    const err = await upstream.text();
-    console.error("OpenRouter error:", err);
-    return NextResponse.json({ error: "AI service error" }, { status: 502 });
-  }
-
-  // Stream SSE response back to client in Vercel AI SDK data stream format
-  const encoder = new TextEncoder();
-  const stream = new ReadableStream({
-    async start(controller) {
-      const reader = upstream.body?.getReader();
-      if (!reader) { controller.close(); return; }
-
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() ?? "";
-
-          for (const line of lines) {
-            if (!line.startsWith("data: ")) continue;
-            const data = line.slice(6).trim();
-            if (data === "[DONE]") continue;
-
-            try {
-              const json = JSON.parse(data);
-              const text = json.choices?.[0]?.delta?.content;
-              if (text) {
-                // Vercel AI SDK data stream format: 0:"text chunk"\n
-                controller.enqueue(encoder.encode(`0:${JSON.stringify(text)}\n`));
-              }
-            } catch { /* skip malformed chunks */ }
-          }
-        }
-      } finally {
-        reader.releaseLock();
-        controller.close();
-      }
-    },
-  });
-
-  return new Response(stream, {
-    headers: {
-      "Content-Type": "text/plain; charset=utf-8",
-      "X-Vercel-AI-Data-Stream": "v1",
-      "X-RateLimit-Remaining": String(remaining),
-    },
-  });
+  const response = result.toDataStreamResponse() as unknown as NextResponse;
+  response.headers.set("X-RateLimit-Remaining", String(remaining));
+  return response;
 }
