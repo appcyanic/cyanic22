@@ -229,7 +229,7 @@ export function SwapCard({ onTokensChange }: SwapCardProps) {
           </div>,
           { id: "swap-tx", duration: 5000 }
         );
-        const xpEarned = calculateSwapXP(false);
+        const xpEarned = calculateSwapXP((userPoints?.swap_count ?? 0) === 0);
         if (xpEarned > 0) {
           await awardXP(xpEarned, "swap", sellUSD);
           toast.success(`+${xpEarned} XP earned!`, { icon: "🔵", duration: 3000 });
