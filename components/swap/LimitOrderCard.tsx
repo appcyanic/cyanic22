@@ -7,11 +7,12 @@ import {
   TrendingUp, TrendingDown, RefreshCw
 } from "lucide-react";
 import { useAccount } from "wagmi";
-import { parseUnits } from "viem";
+import { parseUnits, formatUnits } from "viem";
 import { ConnectButton } from "@/components/ui/ConnectButton";
 import { TokenSelector } from "./TokenSelector";
 import { TokenLogo } from "@/components/ui/TokenLogo";
 import { useLimitOrders } from "@/hooks/useLimitOrders";
+import { useTokenBalance } from "@/hooks/useTokenBalance";
 import { BASE_TOKENS } from "@/lib/tokens";
 import type { Token } from "@/types/token";
 import type { LimitOrder } from "@/types/limit-order";
@@ -135,7 +136,7 @@ function OrderRow({ order, onCancel }: { order: LimitOrder; onCancel: (id: strin
 
 /* ── Main Component ── */
 export function LimitOrderCard() {
-  const { isConnected } = useAccount();
+  const { address, isConnected } = useAccount();
   const { orders, createOrder, cancelOrder } = useLimitOrders();
 
   const [sellToken,   setSellToken]   = useState<Token>(BASE_TOKENS.ETH);
@@ -143,6 +144,9 @@ export function LimitOrderCard() {
   const [sellAmount,  setSellAmount]  = useState("");
   const [targetPrice, setTargetPrice] = useState("");
   const [expiryHours, setExpiryHours] = useState(24);
+
+  const { balanceRaw: sellBalanceRaw, formatted: sellBalanceFormatted } =
+    useTokenBalance(sellToken?.address, address, sellToken?.decimals ?? 18);
   const [slippage,    setSlippage]    = useState(0.5);
   const [isCreating,  setIsCreating]  = useState(false);
   const [showForm,    setShowForm]    = useState(true);
@@ -254,7 +258,29 @@ export function LimitOrderCard() {
           >
             {/* Sell */}
             <div className="rounded-xl border border-border bg-bg-tertiary p-3">
-              <span className="text-xs text-text-muted font-medium block mb-1.5">You Sell</span>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs text-text-muted font-medium">You Sell</span>
+                {isConnected && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-text-muted font-mono">
+                      {sellBalanceFormatted} {sellToken?.symbol}
+                    </span>
+                    {[25, 50, 75, 100].map(pct => (
+                      <button
+                        key={pct}
+                        onClick={() => {
+                          if (!sellBalanceRaw || !sellToken) return;
+                          const val = parseFloat(formatUnits(sellBalanceRaw, sellToken.decimals)) * pct / 100;
+                          setSellAmount(val.toFixed(6));
+                        }}
+                        className="text-xs text-base-blue hover:text-base-blue-light font-semibold px-1.5 py-1 rounded-lg min-h-[28px] hover:bg-base-blue/10 transition-all"
+                      >
+                        {pct === 100 ? "MAX" : `${pct}%`}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
               <div className="flex items-center gap-3">
                 <input
                   type="number" placeholder="0" min="0"
