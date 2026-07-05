@@ -32,7 +32,7 @@ export function SwapCard({ onTokensChange }: SwapCardProps) {
   const { address, isConnected } = useAccount();
   const publicClient             = usePublicClient();
   const { data: walletClient }   = useWalletClient();
-  const { awardXP }              = useUserPoints();
+  const { data: userPoints, awardXP } = useUserPoints();
 
   const [sellToken,  setSellTokenState]  = useState<Token>(BASE_TOKENS.ETH);
   const [buyToken,   setBuyTokenState]   = useState<Token>(BASE_TOKENS.USDC);
