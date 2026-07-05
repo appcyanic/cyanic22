@@ -2,6 +2,32 @@ import { streamText } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { NextRequest, NextResponse } from "next/server";
 
+// x402 payment verification — lazy import to keep out of webpack client bundle
+async function verifyX402Payment(req: NextRequest): Promise<NextResponse | null> {
+  const payTo = (process.env.X402_PAY_TO_ADDRESS || "") as `0x${string}`;
+  const network = (process.env.X402_NETWORK || "base-sepolia") as "base" | "base-sepolia";
+  if (!payTo || payTo === "0x0000000000000000000000000000000000000000") return null;
+
+  try {
+    const { paymentMiddleware } = await import("x402-next");
+    const handler = paymentMiddleware(payTo, {
+      "/api/agent": {
+        price: "$0.01",
+        network,
+        config: {
+          description: "Cyanic AI Agent — DeFi assistant for Base",
+          maxTimeoutSeconds: 120,
+        },
+      },
+    });
+    // Run the middleware handler; if it returns a non-null response, payment is required
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const res = await (handler as any)(req);
+    if (res && res.status !== 200) return res as NextResponse;
+  } catch { /* x402 not configured, skip */ }
+  return null;
+}
+
 // Use Upstash Redis if configured, otherwise fallback to in-memory
 const RATE_LIMIT = 20;
 const WINDOW_MS  = 60_000;
@@ -65,6 +91,10 @@ Response rules:
 - Use clear formatting with bullet points when listing multiple items`;
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
+  // x402 payment check
+  const paymentResponse = await verifyX402Payment(req);
+  if (paymentResponse) return paymentResponse;
+
   const xff = req.headers.get("x-forwarded-for");
   const ip  = xff ? xff.split(",")[0].trim() : "unknown";
   const { allowed, remaining } = await checkRateLimit(ip);

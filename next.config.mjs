@@ -46,7 +46,7 @@ const nextConfig = {
 
     return config;
   },
-  serverExternalPackages: ["pino"],
+  serverExternalPackages: ["pino", "x402-next", "x402"],
 };
 
 export default nextConfig;
