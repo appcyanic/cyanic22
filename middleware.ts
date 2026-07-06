@@ -1,35 +1,23 @@
-import { paymentProxy, x402ResourceServer } from "@x402/next";
-import { ExactEvmScheme } from "@x402/evm/exact/server";
-import { HTTPFacilitatorClient } from "@x402/core/http";
-import { facilitator } from "@coinbase/x402";
+import { paymentMiddleware } from "x402-next";
 
-export const runtime = "nodejs";
+const payTo   = (process.env.X402_PAY_TO_ADDRESS || "0x0000000000000000000000000000000000000000") as `0x${string}`;
+const network = (process.env.X402_NETWORK || "base") as "base" | "base-sepolia";
 
-const payTo = (process.env.X402_PAY_TO_ADDRESS || "0x0000000000000000000000000000000000000000") as `0x${string}`;
-
-// CDP facilitator (mainnet Base + Base Sepolia)
-const facilitatorClient = new HTTPFacilitatorClient(facilitator);
-
-const server = new x402ResourceServer(facilitatorClient)
-  .register("eip155:8453", new ExactEvmScheme()); // Base mainnet
-
-export const middleware = paymentProxy(
+export const middleware = paymentMiddleware(
+  payTo,
   {
     "/api/agent": {
-      accepts: [
-        {
-          scheme:  "exact",
-          price:   "$0.10",
-          network: "eip155:8453",
-          payTo,
-        },
-      ],
-      description: "Cyanic AI Agent — $0.10 USDC per message (covers Anthropic API cost)",
-      mimeType:    "application/json",
+      price: "$0.10",
+      network,
+      config: {
+        description: "Cyanic AI Agent — $0.10 USDC per message",
+        maxTimeoutSeconds: 120,
+      },
     },
-  },
-  server,
+  }
 );
+
+export const runtime = "nodejs";
 
 export const config = {
   matcher: ["/api/agent"],
