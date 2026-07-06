@@ -3,10 +3,14 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, X, ChevronDown } from "lucide-react";
+import { useAccount, usePublicClient } from "wagmi";
+import { formatUnits, erc20Abi } from "viem";
 import { TokenLogo } from "@/components/ui/TokenLogo";
 import { POPULAR_TOKENS, BASE_TOKENS } from "@/lib/tokens";
 import type { Token } from "@/types/token";
 import { cn } from "@/lib/utils";
+
+const NATIVE_ETH = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
 
 interface TokenSelectorProps {
   value?: Token;
@@ -26,15 +30,16 @@ export function TokenSelector({
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [tokens, setTokens] = useState<Token[]>(Object.values(BASE_TOKENS));
+  const [balances, setBalances] = useState<Record<string, string>>({});
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const { address } = useAccount();
+  const publicClient = usePublicClient();
+
   useEffect(() => {
-    if (isOpen && inputRef.current) {
-      inputRef.current.focus();
-    }
+    if (isOpen && inputRef.current) inputRef.current.focus();
   }, [isOpen]);
 
-  // Close on Escape key
   useEffect(() => {
     if (!isOpen) return;
     const handler = (e: KeyboardEvent) => { if (e.key === "Escape") setIsOpen(false); };
@@ -54,10 +59,42 @@ export function TokenSelector({
         setTokens(Object.values(BASE_TOKENS));
       }
     };
-
     const timer = setTimeout(fetchTokens, 300);
     return () => clearTimeout(timer);
   }, [query]);
+
+  // Fetch balances when modal opens
+  useEffect(() => {
+    if (!isOpen || !address || !publicClient) return;
+
+    const fetchBalances = async () => {
+      const allTokens = Object.values(BASE_TOKENS);
+      const results: Record<string, string> = {};
+
+      await Promise.all(allTokens.map(async (token) => {
+        try {
+          if (token.address.toLowerCase() === NATIVE_ETH) {
+            const bal = await publicClient.getBalance({ address });
+            const formatted = parseFloat(formatUnits(bal, 18));
+            results[token.address.toLowerCase()] = formatted > 0 ? formatted.toFixed(4) : "0.00";
+          } else {
+            const bal = await publicClient.readContract({
+              address: token.address as `0x${string}`,
+              abi: erc20Abi,
+              functionName: "balanceOf",
+              args: [address],
+            });
+            const formatted = parseFloat(formatUnits(bal as bigint, token.decimals));
+            results[token.address.toLowerCase()] = formatted > 0 ? formatted.toFixed(4) : "0.00";
+          }
+        } catch { /* skip */ }
+      }));
+
+      setBalances(results);
+    };
+
+    fetchBalances();
+  }, [isOpen, address, publicClient]);
 
   const filtered = tokens.filter(
     (t) =>
@@ -172,36 +209,35 @@ export function TokenSelector({
                     No tokens found
                   </div>
                 ) : (
-                  filtered.slice(0, 50).map((token) => (
-                    <button
-                      key={token.address}
-                      onClick={() => {
-                        onChange(token);
-                        setIsOpen(false);
-                        setQuery("");
-                      }}
-                      className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-bg-secondary transition-all group min-h-[56px]"
-                    >
-                      <TokenLogo
-                        symbol={token.symbol}
-                        logoURI={token.logoURI}
-                        size={36}
-                      />
-                      <div className="flex-1 text-left">
-                        <div className="font-semibold text-text-primary group-hover:text-white">
-                          {token.symbol}
+                  filtered.slice(0, 50).map((token) => {
+                    const tokenBal = balances[token.address.toLowerCase()];
+                    return (
+                      <button
+                        key={token.address}
+                        onClick={() => {
+                          onChange(token);
+                          setIsOpen(false);
+                          setQuery("");
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-bg-secondary transition-all group min-h-[56px]"
+                      >
+                        <TokenLogo symbol={token.symbol} logoURI={token.logoURI} size={36} />
+                        <div className="flex-1 text-left">
+                          <div className="font-semibold text-text-primary group-hover:text-white">
+                            {token.symbol}
+                          </div>
+                          <div className="text-xs text-text-muted truncate max-w-[200px]">
+                            {token.name}
+                          </div>
                         </div>
-                        <div className="text-xs text-text-muted truncate max-w-[200px]">
-                          {token.name}
-                        </div>
-                      </div>
-                      {balance && (
-                        <div className="text-sm text-text-secondary font-mono">
-                          {balance}
-                        </div>
-                      )}
-                    </button>
-                  ))
+                        {tokenBal !== undefined && (
+                          <div className={`text-sm font-mono ${tokenBal === "0.00" ? "text-text-muted" : "text-text-secondary"}`}>
+                            {tokenBal}
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })
                 )}
               </div>
             </motion.div>
