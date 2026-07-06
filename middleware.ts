@@ -3,6 +3,8 @@ import { ExactEvmScheme } from "@x402/evm/exact/server";
 import { HTTPFacilitatorClient } from "@x402/core/http";
 import { facilitator } from "@coinbase/x402";
 
+export const runtime = "nodejs";
+
 const payTo = (process.env.X402_PAY_TO_ADDRESS || "0x0000000000000000000000000000000000000000") as `0x${string}`;
 
 // CDP facilitator (mainnet Base + Base Sepolia)
