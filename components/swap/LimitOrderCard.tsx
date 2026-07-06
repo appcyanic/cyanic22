@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { useAccount } from "wagmi";
 import { parseUnits, formatUnits } from "viem";
+import { toast } from "sonner";
 import { ConnectButton } from "@/components/ui/ConnectButton";
 import { TokenSelector } from "./TokenSelector";
 import { TokenLogo } from "@/components/ui/TokenLogo";
@@ -133,12 +134,25 @@ export function LimitOrderCard() {
   const { address, isConnected } = useAccount();
   const { orders, createOrder, cancelOrder, isLoading } = useLimitOrders();
 
-  const [sellToken,   setSellToken]   = useState<Token>(BASE_TOKENS.ETH);
+  const [sellToken,   setSellToken]   = useState<Token>(BASE_TOKENS.WETH);
   const [buyToken,    setBuyToken]    = useState<Token>(BASE_TOKENS.USDC);
   const [sellAmount,  setSellAmount]  = useState("");
   const [targetPrice, setTargetPrice] = useState("");
   const [expiryHours, setExpiryHours] = useState(24);
   const [showForm,    setShowForm]    = useState(true);
+
+  const NATIVE_ETH_ADDR = BASE_TOKENS.ETH.address.toLowerCase();
+
+  const handleSellTokenChange = (t: Token) => {
+    // CoW Protocol doesn't support native ETH — auto-switch to WETH
+    if (t.address.toLowerCase() === NATIVE_ETH_ADDR) {
+      setSellToken(BASE_TOKENS.WETH);
+      toast.info("Limit orders use WETH instead of ETH (CoW Protocol requires ERC-20).");
+    } else {
+      setSellToken(t);
+    }
+    setSellAmount("");
+  };
 
   const { balanceRaw: sellBalanceRaw, formatted: sellBalanceFormatted } =
     useTokenBalance(sellToken?.address, address, sellToken?.decimals ?? 18);
@@ -264,7 +278,7 @@ export function LimitOrderCard() {
                   className="flex-1 bg-transparent text-2xl font-semibold text-text-primary
                              placeholder:text-text-muted outline-none min-w-0"
                 />
-                <TokenSelector value={sellToken} onChange={t => { setSellToken(t); setSellAmount(""); }} excludeToken={buyToken} />
+                <TokenSelector value={sellToken} onChange={handleSellTokenChange} excludeToken={buyToken} />
               </div>
             </div>
 
