@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, User, Loader2, Zap, Sparkles, ArrowRight, X, CheckCircle2, ExternalLink } from "lucide-react";
+import { Send, User, Loader2, Zap, Sparkles, ArrowRight, X, CheckCircle2, ExternalLink, AlertCircle } from "lucide-react";
 import { useAccount, useWalletClient, usePublicClient } from "wagmi";
 import { parseUnits, erc20Abi, maxUint256 } from "viem";
 import { toast } from "sonner";
@@ -294,13 +294,46 @@ export function AgentChat() {
     setSwapPreview(null);
 
     try {
-      const res = await fetch("/api/agent", {
+      // ── x402: wrap fetch with payment using user's wallet ─────
+      // Dynamically import to keep out of initial bundle
+      const [{ x402Client, wrapFetchWithPayment }, { ExactEvmScheme }] = await Promise.all([
+        import("@x402/fetch"),
+        import("@x402/evm/exact/client"),
+      ]);
+
+      let fetchFn: typeof fetch = fetch;
+
+      if (walletClient && address) {
+        // Create x402 signer from wagmi wallet client
+        // ExactEvmScheme only needs { address, signTypedData }
+        const viemSigner = {
+          address,
+          signTypedData: walletClient.signTypedData.bind(walletClient),
+        };
+
+        const client = new x402Client();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const scheme = new (ExactEvmScheme as any)(viemSigner);
+        client.register("eip155:8453", scheme);
+        fetchFn = wrapFetchWithPayment(fetch, client) as typeof fetch;
+      }
+
+      const res = await fetchFn("/api/agent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: [...messages, userMsg].map(m => ({ role: m.role, content: m.content })) }),
       });
 
-      if (!res.ok) throw new Error("Agent error");
+      if (!res.ok) {
+        if (res.status === 402) {
+          setMessages(prev => [...prev, {
+            id: Date.now().toString(), role: "assistant",
+            content: "⚠️ Connect your wallet and ensure you have USDC on Base to use the AI Agent ($0.10 per message).",
+          }]);
+          return;
+        }
+        throw new Error("Agent error");
+      }
 
       const reader = res.body?.getReader();
       const decoder = new TextDecoder();
@@ -336,11 +369,19 @@ export function AgentChat() {
           await showSwapPreview(intent.amount, intent.from, intent.to);
         }
       }
-    } catch {
-      setMessages(prev => [...prev, {
-        id: Date.now().toString(), role: "assistant",
-        content: "Sorry, something went wrong. Please try again.",
-      }]);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "";
+      if (msg.toLowerCase().includes("payment") || msg.toLowerCase().includes("usdc")) {
+        setMessages(prev => [...prev, {
+          id: Date.now().toString(), role: "assistant",
+          content: "⚠️ Payment failed. Ensure you have USDC on Base and your wallet is connected.",
+        }]);
+      } else {
+        setMessages(prev => [...prev, {
+          id: Date.now().toString(), role: "assistant",
+          content: "Sorry, something went wrong. Please try again.",
+        }]);
+      }
     } finally {
       setIsLoading(false);
     }
