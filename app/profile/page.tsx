@@ -37,7 +37,7 @@ export default function ProfilePage() {
           .from("xp_transactions")
           .select("id, amount, reason, created_at")
           .eq("wallet_address", address.toLowerCase())
-          .eq("reason", "swap")
+          .in("reason", ["swap", "agent"])
           .order("created_at", { ascending: false })
           .limit(10);
         setSwapHistory((data as SwapRecord[]) ?? []);
@@ -157,7 +157,7 @@ export default function ProfilePage() {
       {/* Recent activity */}
       <div className="glass-card p-4">
         <h3 className="font-semibold mb-4 flex items-center gap-2">
-          📋 Recent Swaps
+          📋 Recent Activity
         </h3>
         {historyLoading ? (
           <div className="space-y-2">
@@ -174,9 +174,11 @@ export default function ProfilePage() {
             {swapHistory.map(tx => (
               <div key={tx.id} className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border">
                 <div className="flex items-center gap-2">
-                  <span className="text-lg">🔄</span>
+                  <span className="text-lg">{tx.reason === "agent" ? "🤖" : "🔄"}</span>
                   <div>
-                    <div className="text-xs font-semibold text-text-primary">Swap</div>
+                    <div className="text-xs font-semibold text-text-primary">
+                      {tx.reason === "agent" ? "AI Agent Swap" : "Swap"}
+                    </div>
                     <div className="text-xs text-text-muted">
                       {new Date(tx.created_at).toLocaleDateString("en-US", {
                         month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
@@ -184,7 +186,7 @@ export default function ProfilePage() {
                     </div>
                   </div>
                 </div>
-                <span className="text-xs font-bold text-success">+{tx.amount} XP</span>
+                <span className={`text-xs font-bold ${tx.reason === "agent" ? "text-warning" : "text-success"}`}>+{tx.amount} XP</span>
               </div>
             ))}
           </div>
