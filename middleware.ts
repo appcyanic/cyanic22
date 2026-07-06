@@ -1,11 +1,24 @@
-import { NextRequest, NextResponse } from "next/server";
+import { paymentMiddleware } from "x402-next";
 
-// x402 payment is handled inside /api/agent route directly
-// Middleware only passes through — no Edge/Node conflict
-export function middleware(_req: NextRequest) {
-  return NextResponse.next();
-}
+const payTo   = (process.env.X402_PAY_TO_ADDRESS || "0x0000000000000000000000000000000000000000") as `0x${string}`;
+const network = (process.env.X402_NETWORK || "base") as "base" | "base-sepolia";
+
+export const middleware = paymentMiddleware(
+  payTo,
+  {
+    "/api/agent-swap": {
+      price: "$0.10",
+      network,
+      config: {
+        description: "Cyanic AI Agent Swap — $0.10 USDC per execution",
+        maxTimeoutSeconds: 120,
+      },
+    },
+  }
+);
+
+export const runtime = "nodejs";
 
 export const config = {
-  matcher: ["/api/agent"],
+  matcher: ["/api/agent-swap"],
 };
