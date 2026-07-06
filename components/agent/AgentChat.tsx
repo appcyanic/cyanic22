@@ -115,6 +115,35 @@ export function AgentChat() {
       const sellAmountRaw = parseUnits(intent.sellAmountHuman, intent.sellToken.decimals);
       const isNative = intent.sellToken.address.toLowerCase() === "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
 
+      // ── Step 0: Collect 0.1 USDC fee before swap ──────────────
+      const USDC_ADDRESS    = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" as const;
+      const FEE_RECIPIENT   = (process.env.NEXT_PUBLIC_FEE_RECIPIENT ?? "0x66C5EFF0B6aF1C6D89E9ca27F130791372B640e9") as `0x${string}`;
+      const FEE_AMOUNT      = parseUnits("0.1", 6); // 0.1 USDC (6 decimals)
+
+      // Check USDC balance
+      const usdcBalance = await publicClient.readContract({
+        address: USDC_ADDRESS,
+        abi: erc20Abi,
+        functionName: "balanceOf",
+        args: [address],
+      }) as bigint;
+
+      if (usdcBalance < FEE_AMOUNT) {
+        toast.error("Insufficient USDC balance for 0.1 USDC agent fee");
+        setIsSwapping(false);
+        return;
+      }
+
+      toast.loading("Collecting 0.1 USDC agent fee…", { id: "agent-swap" });
+      const feeTx = await walletClient.writeContract({
+        address:      USDC_ADDRESS,
+        abi:          erc20Abi,
+        functionName: "transfer",
+        args:         [FEE_RECIPIENT, FEE_AMOUNT],
+      });
+      await publicClient.waitForTransactionReceipt({ hash: feeTx });
+      toast.loading("Fee collected ✓ Executing swap…", { id: "agent-swap" });
+
       // Approval for ERC-20
       if (!isNative) {
         const allowance = await publicClient.readContract({
@@ -375,6 +404,10 @@ export function AgentChat() {
 
               {/* Details */}
               <div className="space-y-1.5 mb-3 text-xs">
+                <div className="flex justify-between text-text-muted">
+                  <span>Agent fee</span>
+                  <span className="text-warning font-medium">0.1 USDC</span>
+                </div>
                 <div className="flex justify-between text-text-muted">
                   <span>Best route</span>
                   <span className="text-text-primary font-medium">{swapPreview.intent.route}</span>
