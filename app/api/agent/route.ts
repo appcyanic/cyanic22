@@ -12,7 +12,7 @@ async function verifyX402Payment(req: NextRequest): Promise<NextResponse | null>
     const { paymentMiddleware } = await import("x402-next");
     const handler = paymentMiddleware(payTo, {
       "/api/agent": {
-        price: "$0.01",
+        price: "$0.10",
         network,
         config: {
           description: "Cyanic AI Agent — DeFi assistant for Base",
