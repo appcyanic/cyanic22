@@ -134,23 +134,14 @@ export function LimitOrderCard() {
   const { address, isConnected } = useAccount();
   const { orders, createOrder, cancelOrder, isLoading } = useLimitOrders();
 
-  const [sellToken,   setSellToken]   = useState<Token>(BASE_TOKENS.WETH);
-  const [buyToken,    setBuyToken]    = useState<Token>(BASE_TOKENS.USDC);
+  const [sellToken,   setSellToken]   = useState<Token>(BASE_TOKENS.WETH);  const [buyToken,    setBuyToken]    = useState<Token>(BASE_TOKENS.USDC);
   const [sellAmount,  setSellAmount]  = useState("");
   const [targetPrice, setTargetPrice] = useState("");
   const [expiryHours, setExpiryHours] = useState(24);
   const [showForm,    setShowForm]    = useState(true);
 
-  const NATIVE_ETH_ADDR = BASE_TOKENS.ETH.address.toLowerCase();
-
   const handleSellTokenChange = (t: Token) => {
-    // CoW Protocol doesn't support native ETH — auto-switch to WETH
-    if (t.address.toLowerCase() === NATIVE_ETH_ADDR) {
-      setSellToken(BASE_TOKENS.WETH);
-      toast.info("Limit orders use WETH instead of ETH (CoW Protocol requires ERC-20).");
-    } else {
-      setSellToken(t);
-    }
+    setSellToken(t);
     setSellAmount("");
   };
 
@@ -360,7 +351,7 @@ export function LimitOrderCard() {
 
             {/* CoW info box */}
             <div className="px-3 py-2 rounded-lg bg-success/5 border border-success/20 text-xs text-text-secondary">
-              <strong className="text-success">Powered by CoW Protocol</strong> — order is submitted on-chain and monitored 24/7 by CoW solvers. No need to keep this tab open.
+              <strong className="text-success">Powered by CoW Protocol</strong> — order submitted on-chain, monitored 24/7. ETH orders use CoW EthFlow. No need to keep this tab open.
             </div>
 
             {/* CTA */}

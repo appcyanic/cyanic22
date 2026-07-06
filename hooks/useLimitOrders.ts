@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useAccount, useWalletClient, usePublicClient } from "wagmi";
 import { parseUnits, erc20Abi, maxUint256, getAddress } from "viem";
 import { toast } from "sonner";
-import { OrderBookApi, SupportedChainId, SigningScheme } from "@cowprotocol/cow-sdk";
+import { OrderBookApi, SupportedChainId, SigningScheme, ETH_FLOW_ADDRESSES, EthFlowAbi } from "@cowprotocol/cow-sdk";
 import type { Token } from "@/types/token";
 
 type CowOrderStatus = "pending" | "open" | "filled" | "cancelled" | "expired";
@@ -20,12 +20,15 @@ export interface CowLimitOrder {
   createdAt: number;
   validTo: number;
   txHash?: string;
+  isEthFlow?: boolean;
 }
 
 const CHAIN_ID          = SupportedChainId.BASE;
 const COW_VAULT_RELAYER = "0xC92E8bdf79f0507f65a392b0ab4667716BFE0110" as const;
 const NATIVE_ETH        = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
 const WETH_BASE         = "0x4200000000000000000000000000000000000006";
+const ETH_FLOW_CONTRACT = ETH_FLOW_ADDRESSES[CHAIN_ID] as `0x${string}`;
+const COW_API_BASE      = "https://api.cow.fi/base/api/v1";
 
 const COW_DOMAIN = {
   name:              "Gnosis Protocol",
@@ -73,9 +76,9 @@ export function useLimitOrders() {
             const cowOrder = await orderBookApi.getOrder(local.id);
             return {
               ...local,
-              status:  mapCowStatus(cowOrder.status),
+              status: mapCowStatus(cowOrder.status),
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              txHash:  (cowOrder as any).executionDigest ?? local.txHash,
+              txHash: (cowOrder as any).executionDigest ?? local.txHash,
             };
           } catch {
             return local;
@@ -95,6 +98,81 @@ export function useLimitOrders() {
     return () => clearInterval(t);
   }, [address, fetchOrders]);
 
+  // ── EthFlow: create order using native ETH ─────────────────────
+  const createEthFlowOrder = useCallback(async (
+    buyToken: Token,
+    sellAmountHuman: string,
+    targetPrice: string,
+    expiresInHours: number,
+    toastId: string
+  ): Promise<string | undefined> => {
+    if (!address || !walletClient || !publicClient) return;
+
+    const sellAmountRaw  = parseUnits(sellAmountHuman, 18); // ETH = 18 decimals
+    const price          = parseFloat(targetPrice);
+    const buyAmountHuman = (parseFloat(sellAmountHuman) * price).toFixed(buyToken.decimals);
+    const buyAmountRaw   = parseUnits(buyAmountHuman, buyToken.decimals);
+    const validTo        = Math.floor(Date.now() / 1000) + expiresInHours * 3600;
+    const buyAddr        = getAddress(buyToken.address);
+
+    // Step 1: Get a quoteId from CoW API (required by EthFlow)
+    toast.loading("Getting quote…", { id: toastId });
+    const quoteRes = await fetch(`${COW_API_BASE}/quote`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sellToken:          WETH_BASE,   // quote uses WETH as proxy for ETH
+        buyToken:           buyAddr.toLowerCase(),
+        receiver:           address.toLowerCase(),
+        appData:            "0x0000000000000000000000000000000000000000000000000000000000000000",
+        partiallyFillable:  false,
+        sellAmountBeforeFee: sellAmountRaw.toString(),
+        kind:               "sell",
+        from:               address.toLowerCase(),
+        signingScheme:      "eip712",
+      }),
+    });
+
+    let quoteId: number = 0;
+    if (quoteRes.ok) {
+      const quoteData = await quoteRes.json();
+      quoteId = quoteData.id ?? 0;
+    }
+
+    // Step 2: Call EthFlow.createOrder() with ETH value
+    toast.loading("Confirm transaction in wallet…", { id: toastId });
+
+    const ethFlowAbi = EthFlowAbi as readonly object[];
+
+    const txHash = await walletClient.writeContract({
+      address: ETH_FLOW_CONTRACT,
+      abi:     ethFlowAbi,
+      functionName: "createOrder",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      args: [{
+        buyToken:          buyAddr,
+        receiver:          getAddress(address),
+        sellAmount:        sellAmountRaw,
+        buyAmount:         buyAmountRaw,
+        appData:           "0x0000000000000000000000000000000000000000000000000000000000000000" as `0x${string}`,
+        feeAmount:         BigInt(0) as unknown as undefined,
+        validTo:           validTo,
+        partiallyFillable: false,
+        quoteId:           quoteId,
+      }] as any,
+      value: sellAmountRaw as unknown as undefined,
+    });
+
+    toast.loading("Waiting for confirmation…", { id: toastId });
+    const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
+
+    if (receipt.status !== "success") throw new Error("Transaction failed");
+
+    // EthFlow order ID = tx hash (CoW tracks it via events)
+    return txHash;
+  }, [address, walletClient, publicClient]);
+
+  // ── Main createOrder ───────────────────────────────────────────
   const createOrder = useCallback(async (
     sellToken: Token,
     buyToken: Token,
@@ -107,22 +185,51 @@ export function useLimitOrders() {
       return;
     }
 
-    // CoW Protocol doesn't support native ETH
-    if (sellToken.address.toLowerCase() === NATIVE_ETH) {
-      toast.error("Use WETH instead of ETH for limit orders (CoW Protocol requires ERC-20 tokens).");
-      return;
-    }
-
     setIsLoading(true);
     const toastId = "cow-limit-order";
 
     try {
-      // ── Resolve addresses (checksum) ───────────────────────────
-      const sellAddr = getAddress(
-        sellToken.address.toLowerCase() === NATIVE_ETH ? WETH_BASE : sellToken.address
-      );
+      const isNativeEth = sellToken.address.toLowerCase() === NATIVE_ETH ||
+                          sellToken.address === "0x0000000000000000000000000000000000000000";
+
+      // ── ETH path: use EthFlow ──────────────────────────────────
+      if (isNativeEth) {
+        const orderId = await createEthFlowOrder(buyToken, sellAmountHuman, targetPrice, expiresInHours, toastId);
+        if (!orderId) return;
+
+        const price          = parseFloat(targetPrice);
+        const buyAmountHuman = (parseFloat(sellAmountHuman) * price).toFixed(buyToken.decimals);
+        const validTo        = (Math.floor(Date.now() / 1000) + expiresInHours * 3600) * 1000;
+
+        const newOrder: CowLimitOrder = {
+          id:          orderId,
+          sellToken,
+          buyToken,
+          sellAmount:  sellAmountHuman,
+          buyAmount:   buyAmountHuman,
+          targetPrice,
+          status:      "open",
+          createdAt:   Date.now(),
+          validTo,
+          txHash:      orderId,
+          isEthFlow:   true,
+        };
+
+        const updated = [newOrder, ...getStoredOrders(address)];
+        saveStoredOrders(address, updated);
+        setOrders(updated);
+
+        toast.success(
+          `✅ ETH limit order live! Executes when 1 ETH ≥ ${targetPrice} ${buyToken.symbol}`,
+          { id: toastId, duration: 6000 }
+        );
+        return orderId;
+      }
+
+      // ── ERC-20 path: standard CoW EIP-712 ─────────────────────
+      const sellAddr = getAddress(sellToken.address);
       const buyAddr  = getAddress(
-        buyToken.address.toLowerCase()  === NATIVE_ETH ? WETH_BASE : buyToken.address
+        buyToken.address.toLowerCase() === NATIVE_ETH ? WETH_BASE : buyToken.address
       );
 
       const sellAmountRaw  = parseUnits(sellAmountHuman.replace(",", "."), sellToken.decimals);
@@ -131,7 +238,6 @@ export function useLimitOrders() {
       const buyAmountRaw   = parseUnits(buyAmountHuman, buyToken.decimals);
       const validTo        = Math.floor(Date.now() / 1000) + expiresInHours * 3600;
 
-      // ── Token approval ─────────────────────────────────────────
       toast.loading("Checking token approval…", { id: toastId });
       const allowance = await publicClient.readContract({
         address:      sellAddr,
@@ -151,7 +257,6 @@ export function useLimitOrders() {
         await publicClient.waitForTransactionReceipt({ hash: approveTx });
       }
 
-      // ── Sign order via EIP-712 ─────────────────────────────────
       toast.loading("Sign order in wallet…", { id: toastId });
 
       const signature = await walletClient.signTypedData({
@@ -174,7 +279,6 @@ export function useLimitOrders() {
         },
       });
 
-      // ── Submit to CoW API ──────────────────────────────────────
       toast.loading("Submitting to CoW Protocol…", { id: toastId });
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -197,15 +301,15 @@ export function useLimitOrders() {
       } as any);
 
       const newOrder: CowLimitOrder = {
-        id:          orderId,
+        id:         orderId,
         sellToken,
         buyToken,
-        sellAmount:  sellAmountHuman,
-        buyAmount:   buyAmountHuman,
+        sellAmount: sellAmountHuman,
+        buyAmount:  buyAmountHuman,
         targetPrice,
-        status:      "open",
-        createdAt:   Date.now(),
-        validTo:     validTo * 1000,
+        status:     "open",
+        createdAt:  Date.now(),
+        validTo:    validTo * 1000,
       };
 
       const updated = [newOrder, ...getStoredOrders(address)];
@@ -216,8 +320,8 @@ export function useLimitOrders() {
         `✅ Limit order live! Executes when 1 ${sellToken.symbol} ≥ ${targetPrice} ${buyToken.symbol}`,
         { id: toastId, duration: 6000 }
       );
-
       return orderId;
+
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (!msg.toLowerCase().includes("rejected") && !msg.toLowerCase().includes("denied")) {
@@ -228,31 +332,65 @@ export function useLimitOrders() {
     } finally {
       setIsLoading(false);
     }
-  }, [address, walletClient, publicClient]);
+  }, [address, walletClient, publicClient, createEthFlowOrder]);
 
   const cancelOrder = useCallback(async (orderId: string) => {
     if (!address || !walletClient) return;
-    try {
-      const signature = await walletClient.signTypedData({
-        domain:      COW_DOMAIN,
-        types:       { OrderCancellations: [{ name: "orderUids", type: "bytes[]" }] },
-        primaryType: "OrderCancellations",
-        message:     { orderUids: [orderId as `0x${string}`] },
-      });
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (orderBookApi as any).sendSignedOrderCancellations({
-        orderUids:     [orderId],
-        signature,
-        signingScheme: SigningScheme.EIP712,
-      });
-    } catch { /* ignore cancel API errors */ }
+    // EthFlow orders cancelled on-chain via invalidateOrder
+    const stored = getStoredOrders(address);
+    const order = stored.find(o => o.id === orderId);
 
-    const updated = getStoredOrders(address).filter(o => o.id !== orderId);
+    if (order?.isEthFlow && publicClient) {
+      try {
+        toast.loading("Cancelling ETH order…");
+        const ethFlowAbi = EthFlowAbi as readonly object[];
+        const validTo = Math.floor(order.validTo / 1000);
+        const buyAddr = getAddress(order.buyToken.address);
+        const sellAmountRaw = parseUnits(order.sellAmount, 18);
+        const buyAmountRaw  = parseUnits(order.buyAmount, order.buyToken.decimals);
+
+        const txHash = await walletClient.writeContract({
+          address: ETH_FLOW_CONTRACT,
+          abi:     ethFlowAbi,
+          functionName: "invalidateOrder",
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          args: [{
+            buyToken:          buyAddr,
+            receiver:          getAddress(address),
+            sellAmount:        sellAmountRaw,
+            buyAmount:         buyAmountRaw,
+            appData:           "0x0000000000000000000000000000000000000000000000000000000000000000" as `0x${string}`,
+            feeAmount:         BigInt(0),
+            validTo:           validTo,
+            partiallyFillable: false,
+            quoteId:           0,
+          }] as any,
+        });
+        await publicClient.waitForTransactionReceipt({ hash: txHash });
+      } catch { /* ignore */ }
+    } else {
+      try {
+        const signature = await walletClient.signTypedData({
+          domain:      COW_DOMAIN,
+          types:       { OrderCancellations: [{ name: "orderUids", type: "bytes[]" }] },
+          primaryType: "OrderCancellations",
+          message:     { orderUids: [orderId as `0x${string}`] },
+        });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (orderBookApi as any).sendSignedOrderCancellations({
+          orderUids:     [orderId],
+          signature,
+          signingScheme: SigningScheme.EIP712,
+        });
+      } catch { /* ignore */ }
+    }
+
+    const updated = stored.filter(o => o.id !== orderId);
     saveStoredOrders(address, updated);
     setOrders(updated);
     toast.success("Order cancelled");
-  }, [address, walletClient]);
+  }, [address, walletClient, publicClient]);
 
   const activeOrders = orders.filter(o => o.status === "open" || o.status === "pending");
 
