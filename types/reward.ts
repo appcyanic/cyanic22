@@ -40,7 +40,7 @@ export const XP_REWARDS = {
   PER_SWAP:         100,
   AGENT_SWAP:       250,
   DAILY_SWAP:       50,
-  WEEK_STREAK:      500,
+  WEEK_STREAK:      1000,
   REFERRAL:         1000,
   REFERRED_BONUS:   200,
   X_FOLLOW:         1000,

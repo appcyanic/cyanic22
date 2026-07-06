@@ -231,11 +231,15 @@ export function SwapCard({ onTokensChange }: SwapCardProps) {
         );
         const xpEarned = calculateSwapXP((userPoints?.swap_count ?? 0) === 0);
         if (xpEarned > 0) {
-          // Use buyUSD as volume if buyToken is a stablecoin, otherwise use sellUSD
-          // sellUSD and buyUSD are ETH-rate estimates, best approximation available
           const volumeUSD = buyUSD > 0 ? buyUSD : sellUSD;
-          await awardXP(xpEarned, "swap", volumeUSD);
+          const result = await awardXP(xpEarned, "swap", volumeUSD);
           toast.success(`+${xpEarned} XP earned!`, { icon: "🔵", duration: 3000 });
+          // Show streak bonus if earned
+          if (result?.streak_bonus > 0) {
+            setTimeout(() => {
+              toast.success(`🔥 7-Day Streak Bonus! +${result.streak_bonus} XP`, { duration: 5000 });
+            }, 1500);
+          }
         }
         confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 },
                    colors: ["#0052FF","#00C2FF","#00C896"] });

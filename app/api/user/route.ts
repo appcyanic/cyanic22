@@ -4,6 +4,7 @@ import {
   getLevelFromXP,
   getXPToNextLevel,
   getLevelProgress,
+  XP_REWARDS,
 } from "@/types/reward";
 import { generateReferralCode } from "@/lib/points";
 
@@ -102,7 +103,6 @@ export async function POST(req: NextRequest) {
       referral_code: generateReferralCode(addr),
     };
 
-    const newXP     = (base.total_xp ?? 0) + xp_amount;
     const newVolume = (base.total_volume_usd ?? 0) + (volume_usd ?? 0);
     const newSwaps  = event_type === "swap" ? (base.swap_count ?? 0) + 1 : (base.swap_count ?? 0);
 
@@ -122,6 +122,14 @@ export async function POST(req: NextRequest) {
         // diff === 0 means already swapped today, keep streak
       }
     }
+
+    // ── 7-day streak bonus ────────────────────────────────────────
+    let streakBonusXP = 0;
+    if (event_type === "swap" && newStreak > 0 && newStreak % 7 === 0) {
+      streakBonusXP = XP_REWARDS.WEEK_STREAK;
+    }
+
+    const newXP = (base.total_xp ?? 0) + xp_amount + streakBonusXP;
 
     const updates = {
       wallet_address:   addr,
@@ -147,13 +155,24 @@ export async function POST(req: NextRequest) {
       reason:         event_type,
     }).throwOnError();
 
+    // Log streak bonus separately if earned
+    if (streakBonusXP > 0) {
+      await supabase.from("xp_transactions").insert({
+        wallet_address: addr,
+        amount:         streakBonusXP,
+        reason:         "streak",
+      }).throwOnError();
+    }
+
     const newLevel = getLevelFromXP(newXP);
 
     return NextResponse.json({
-      success:   true,
-      new_xp:    newXP,
-      new_level: newLevel,
-      xp_earned: xp_amount,
+      success:      true,
+      new_xp:       newXP,
+      new_level:    newLevel,
+      xp_earned:    xp_amount,
+      streak_bonus: streakBonusXP,
+      streak_days:  newStreak,
     });
   } catch (err) {
     console.error("POST /api/user error:", err);
