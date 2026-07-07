@@ -33,7 +33,7 @@ const SOCIAL_LINKS = [
     icon: <XIcon className="w-5 h-5" />,
   },
   {
-    href: "https://github.com/appcyanic/cyanic",
+    href: "https://github.com/appcyanic/cyanic22",
     label: "GitHub",
     icon: <GitHubIcon className="w-5 h-5" />,
   },
@@ -41,7 +41,29 @@ const SOCIAL_LINKS = [
 
 export function Footer() {
   return (
-    <footer className="border-t border-border bg-bg-primary mt-auto hidden md:block">
+    <>
+      {/* Desktop floating social dock — fixed bottom right */}
+      <div className="hidden md:flex fixed bottom-6 right-6 z-50 flex-col gap-2">
+        {SOCIAL_LINKS.map((link) => (
+          <a
+            key={link.href}
+            href={link.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={link.label}
+            className="w-10 h-10 flex items-center justify-center rounded-2xl border text-text-muted hover:text-text-primary active:scale-95 transition-all"
+            style={{
+              background: "var(--bg-secondary)",
+              borderColor: "var(--border)",
+              boxShadow: "0 2px 12px rgba(0,0,0,0.3)",
+            }}
+          >
+            {link.icon}
+          </a>
+        ))}
+      </div>
+
+      <footer className="border-t border-border bg-bg-primary mt-auto hidden md:block">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-5">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
 
@@ -98,5 +120,6 @@ export function Footer() {
         </div>
       </div>
     </footer>
+    </>
   );
 }
