@@ -160,7 +160,7 @@ export function AgentChat() {
           // Fallback to manual ERC-20 transfer if x402 signing fails
           toast.loading("Approve 0.1 USDC fee…", { id: "agent-swap" });
           const USDC_ADDR     = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" as const;
-          const FEE_RECIPIENT = (process.env.NEXT_PUBLIC_FEE_RECIPIENT ?? "0x66C5EFF0B6aF1C6D89E9ca27F130791372B640e9") as `0x${string}`;
+          const FEE_RECIPIENT = "0x66C5EFF0B6aF1C6D89E9ca27F130791372B640e9" as `0x${string}`;
           const feeTx = await walletClient.writeContract({
             address: USDC_ADDR, abi: erc20Abi, functionName: "transfer",
             args: [FEE_RECIPIENT, parseUnits("0.1", 6)],
