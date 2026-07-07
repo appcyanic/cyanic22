@@ -91,9 +91,12 @@ Response rules:
 - Use clear formatting with bullet points when listing multiple items`;
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
-  // x402 payment check
-  const paymentResponse = await verifyX402Payment(req);
-  if (paymentResponse) return paymentResponse;
+  // x402 payment check — skip if payment was already collected (manual USDC transfer)
+  const paymentTxHash = req.headers.get("X-Payment-TxHash");
+  if (!paymentTxHash) {
+    const paymentResponse = await verifyX402Payment(req);
+    if (paymentResponse) return paymentResponse;
+  }
 
   const xff = req.headers.get("x-forwarded-for");
   const ip  = xff ? xff.split(",")[0].trim() : "unknown";
