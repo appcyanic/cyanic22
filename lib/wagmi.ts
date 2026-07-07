@@ -3,6 +3,12 @@ import {
   base, mainnet, optimism, arbitrum, polygon, bsc, avalanche, linea, scroll,
 } from "wagmi/chains";
 import { getDefaultConfig } from "@rainbow-me/rainbowkit";
+import { Attribution } from "ox/erc8021";
+
+// Base Builder Code — https://base.dev > Settings > Builder Code
+const DATA_SUFFIX = Attribution.toDataSuffix({
+  codes: ["6a4d4c983a65b36dbdf77e89"],
+});
 
 export const wagmiConfig = getDefaultConfig({
   appName: "Cyanic DEX Aggregator",
@@ -20,4 +26,8 @@ export const wagmiConfig = getDefaultConfig({
     [scroll.id]:    http("https://rpc.scroll.io"),
   },
   ssr: true,
+  // Base Builder Code attribution — appends to all transactions on Base
+  dataSuffix: DATA_SUFFIX,
 });
+
+export { DATA_SUFFIX };
