@@ -197,7 +197,9 @@ export function AgentChat() {
 
       // ── Execute the swap on-chain ──────────────────────────────
       const isNative = intent.sellToken.address.toLowerCase() === "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
-      const PERMIT2_ADDR = "0x000000000022D473030F116dDEE9F6B43aC78BA3" as const;
+      // 0x v2 uses AllowanceHolder, not Permit2
+      const PERMIT2_ADDR    = "0x000000000022D473030F116dDEE9F6B43aC78BA3" as const;
+      const ALLOWANCE_HOLDER = "0x0000000000001fF3684f28c67538d4D072C22734" as const;
 
       // Approval for ERC-20
       if (!isNative) {
@@ -205,7 +207,7 @@ export function AgentChat() {
           address: intent.sellToken.address as `0x${string}`,
           abi: erc20Abi,
           functionName: "allowance",
-          args: [address, PERMIT2_ADDR],
+          args: [address, ALLOWANCE_HOLDER],
         });
         const sellAmtBn = parseUnits(intent.sellAmountHuman, intent.sellToken.decimals);
         if ((allowance as bigint) < sellAmtBn) {
@@ -214,7 +216,7 @@ export function AgentChat() {
             address: intent.sellToken.address as `0x${string}`,
             abi: erc20Abi,
             functionName: "approve",
-            args: [PERMIT2_ADDR, maxUint256],
+            args: [ALLOWANCE_HOLDER, maxUint256],
           });
           await publicClient.waitForTransactionReceipt({ hash: approveTx });
         }
