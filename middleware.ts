@@ -1,23 +1,10 @@
-import { paymentMiddleware } from "x402-next";
+import { NextRequest, NextResponse } from "next/server";
 
-const payTo   = (process.env.X402_PAY_TO_ADDRESS || "0x0000000000000000000000000000000000000000") as `0x${string}`;
-const network = (process.env.X402_NETWORK || "base") as "base" | "base-sepolia";
-
-export const middleware = paymentMiddleware(
-  payTo,
-  {
-    "/api/agent": {
-      price: "$0.10",
-      network,
-      config: {
-        description: "Cyanic AI Agent — $0.10 USDC per message",
-        maxTimeoutSeconds: 120,
-      },
-    },
-  }
-);
-
-export const runtime = "nodejs";
+// x402 payment is handled inside /api/agent route handler directly
+// Middleware passes through to avoid Vercel Node.js runtime conflicts
+export function middleware(_req: NextRequest) {
+  return NextResponse.next();
+}
 
 export const config = {
   matcher: ["/api/agent"],
