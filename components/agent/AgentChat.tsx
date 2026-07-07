@@ -115,6 +115,29 @@ export function AgentChat() {
       // ── x402: call /api/agent-swap, handle 402 payment flow ───
       toast.loading("Requesting swap via AI Agent…", { id: "agent-swap" });
 
+      // ── Collect 0.1 USDC fee before swap ──────────────────────
+      const USDC_ADDRESS  = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" as const;
+      const FEE_RECIPIENT = (process.env.NEXT_PUBLIC_FEE_RECIPIENT ?? "0x66C5EFF0B6aF1C6D89E9ca27F130791372B640e9") as `0x${string}`;
+      const FEE_AMOUNT    = parseUnits("0.1", 6);
+
+      const usdcBalance = await publicClient.readContract({
+        address: USDC_ADDRESS, abi: erc20Abi, functionName: "balanceOf", args: [address],
+      }) as bigint;
+
+      if (usdcBalance < FEE_AMOUNT) {
+        toast.error("Insufficient USDC for 0.1 USDC agent fee", { id: "agent-swap" });
+        setIsSwapping(false);
+        return;
+      }
+
+      toast.loading("Approve 0.1 USDC agent fee…", { id: "agent-swap" });
+      const feeTx = await walletClient.writeContract({
+        address: USDC_ADDRESS, abi: erc20Abi, functionName: "transfer",
+        args: [FEE_RECIPIENT, FEE_AMOUNT],
+      });
+      await publicClient.waitForTransactionReceipt({ hash: feeTx });
+      toast.loading("Fee collected ✓ Getting swap quote…", { id: "agent-swap" });
+
       const fetchWithPayment = async (): Promise<Response> => {
         const res = await fetch("/api/agent-swap", {
           method: "POST",
