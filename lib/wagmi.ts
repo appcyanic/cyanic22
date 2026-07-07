@@ -7,7 +7,7 @@ import { Attribution } from "ox/erc8021";
 
 // Base Builder Code — https://base.dev > Settings > Builder Code
 const DATA_SUFFIX = Attribution.toDataSuffix({
-  codes: ["6a4d4c983a65b36dbdf77e89"],
+  codes: ["bc_x4y7vlfl"],
 });
 
 export const wagmiConfig = getDefaultConfig({
