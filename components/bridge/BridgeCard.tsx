@@ -17,6 +17,7 @@ import { useBridgeRoutes }   from "@/hooks/useBridgeRoutes";
 import { saveBridgeHistory } from "@/lib/bridgeHistory";
 import { initLifi, getLifiClient } from "@/lib/lifi";
 import { SUPPORTED_CHAINS }  from "@/lib/bridgeChains";
+import { DATA_SUFFIX } from "@/lib/wagmi";
 import type { TransferStatus } from "@/types/bridge";
 
 const ETH_ADDRESS = "0x0000000000000000000000000000000000000000";
@@ -207,7 +208,7 @@ export function BridgeCard() {
         const hash = await walletClient.sendTransaction({
           account: address,
           to:      tx.to    as `0x${string}`,
-          data:    tx.data  as `0x${string}` | undefined,
+          data:    tx.data  ? ((tx.data as string) + DATA_SUFFIX.slice(2)) as `0x${string}` : DATA_SUFFIX as `0x${string}`,
           value:   tx.value ? BigInt(String(tx.value)) : BigInt(0),
           chainId: fromChain,
         });
