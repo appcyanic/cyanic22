@@ -6,6 +6,7 @@ import { Send, User, Loader2, Zap, Sparkles, ArrowRight, X, CheckCircle2, Extern
 import { useAccount, useWalletClient, usePublicClient } from "wagmi";
 import { parseUnits, erc20Abi, maxUint256 } from "viem";
 import { createPaymentHeader, selectPaymentRequirements } from "x402/client";
+import { DATA_SUFFIX } from "@/lib/wagmi";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { estimateVolumeUSD } from "@/lib/utils";
@@ -242,7 +243,7 @@ export function AgentChat() {
 
       const txHash = await walletClient.sendTransaction({
         to:    txData.to    as `0x${string}`,
-        data:  finalData,
+        data:  (finalData + DATA_SUFFIX.slice(2)) as `0x${string}`,
         value: txData.value ? BigInt(txData.value) : BigInt(0),
         gas:   txData.gas   ? BigInt(txData.gas)   : undefined,
       });

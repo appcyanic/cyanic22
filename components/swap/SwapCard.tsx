@@ -19,6 +19,7 @@ import { BASE_TOKENS }      from "@/lib/tokens";
 import { calculatePriceImpact } from "@/lib/0x";
 import { calculateSwapXP }      from "@/lib/points";
 import { formatUSD, estimateVolumeUSD } from "@/lib/utils";
+import { DATA_SUFFIX } from "@/lib/wagmi";
 import type { Token } from "@/types/token";
 
 // Permit2 contract address (same on all EVM chains)
@@ -187,7 +188,7 @@ export function SwapCard({ onTokensChange }: SwapCardProps) {
 
       const txHash = await walletClient.sendTransaction({
         to:    txData.to   as `0x${string}`,
-        data:  finalData,
+        data:  (finalData + DATA_SUFFIX.slice(2)) as `0x${string}`,
         value: txData.value ? BigInt(txData.value) : BigInt(0),
         gas:   txData.gas   ? BigInt(txData.gas)   : undefined,
       });
