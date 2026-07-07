@@ -1,27 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
-import { paymentMiddleware } from "x402-next";
 
 export const runtime = "nodejs";
 
 /**
  * POST /api/agent-swap
  *
- * x402-protected endpoint — $0.10 USDC per execution.
+ * x402-compatible protected endpoint — $0.10 USDC per execution.
  *
- * paymentMiddleware runs inside this nodejs route handler (NOT in Edge middleware)
- * because @coinbase/cdp-sdk exceeds the 1 MB Edge Function bundle limit.
+ * Why not x402-next's paymentMiddleware?
+ * - In Edge runtime: @coinbase/cdp-sdk bundle exceeds 1 MB limit
+ * - In nodejs route: x402-next ESM imports 'next/server' (no extension)
+ *   which breaks Next.js 15 module resolution at build time
  *
- * Flow:
- * 1. First call: no X-PAYMENT header → paymentMiddleware returns 402 with requirements
- * 2. Client signs payment with createPaymentHeader (x402/client)
- * 3. Retry with X-PAYMENT header → middleware verifies via x402.org/facilitator
- * 4. On success: fetch 0x quote and return it
+ * Solution: implement the x402 protocol manually —
+ *   1. No X-PAYMENT header → return 402 with x402-compatible requirements JSON
+ *   2. Client signs with createPaymentHeader (x402/client) and retries
+ *   3. Verify signed header via x402.org/facilitator REST API
+ *   4. On success: fetch 0x quote and return it
  */
 
 const PAYMENT_WALLET = process.env.X402_PAY_TO_ADDRESS as `0x${string}` | undefined;
 const APP_URL        = process.env.NEXT_PUBLIC_APP_URL ?? "";
+const FACILITATOR    = "https://x402.org/facilitator";
 
-// x402 requires a valid wallet + public HTTPS URL (facilitator can't reach localhost)
 const isPublicUrl =
   APP_URL.startsWith("https://") &&
   !APP_URL.includes("localhost") &&
@@ -32,30 +33,83 @@ const x402Enabled =
   /^0x[0-9a-fA-F]{40}$/.test(PAYMENT_WALLET) &&
   isPublicUrl;
 
-// Build the paymentMiddleware handler once (module-level, not per request)
-const x402Handler = x402Enabled
-  ? paymentMiddleware(
-      PAYMENT_WALLET!,
-      {
-        "/api/agent-swap": {
-          price: "$0.10",
-          network: "base",
-          config: {
-            description: "Cyanic AI Agent Swap — best route on Base network",
-          },
-        },
+const PAYMENT_REQUIREMENTS = {
+  x402Version: 1,
+  accepts: [
+    {
+      scheme:            "exact",
+      network:           "eip155:8453",   // Base mainnet
+      maxAmountRequired: "100000",        // 0.1 USDC (6 decimals)
+      resource:          `${APP_URL}/api/agent-swap`,
+      description:       "Cyanic AI Agent Swap — best route on Base network",
+      mimeType:          "application/json",
+      payTo:             PAYMENT_WALLET ?? "0x0000000000000000000000000000000000000000",
+      maxTimeoutSeconds: 300,
+      asset:             "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", // USDC on Base
+      extra: {
+        name:    "USD Coin",
+        version: "2",
       },
-      { url: "https://x402.org/facilitator" }
-    )
-  : null;
+    },
+  ],
+};
+
+async function verifyX402Payment(paymentHeader: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${FACILITATOR}/verify`, {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        x402Version:         PAYMENT_REQUIREMENTS.x402Version,
+        paymentPayload:      paymentHeader,
+        paymentRequirements: PAYMENT_REQUIREMENTS.accepts,
+      }),
+    });
+    if (!res.ok) return false;
+    const data = await res.json() as { isValid?: boolean };
+    return data.isValid === true;
+  } catch (err) {
+    console.error("x402 verify error:", err);
+    return false;
+  }
+}
+
+async function settleX402Payment(paymentHeader: string): Promise<void> {
+  try {
+    await fetch(`${FACILITATOR}/settle`, {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        x402Version:         PAYMENT_REQUIREMENTS.x402Version,
+        paymentPayload:      paymentHeader,
+        paymentRequirements: PAYMENT_REQUIREMENTS.accepts,
+      }),
+    });
+  } catch (err) {
+    console.error("x402 settle error:", err);
+  }
+}
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
-  // ── x402 payment gate ─────────────────────────────────────────────
-  if (x402Handler) {
-    const paymentResult = await x402Handler(req);
-    // paymentMiddleware returns a Response only when payment is required/invalid
-    if (paymentResult && (paymentResult as Response).status !== 200) {
-      return paymentResult as unknown as NextResponse;
+  const paymentHeader = req.headers.get("X-PAYMENT") ?? req.headers.get("x-payment");
+
+  // ── x402 gate ─────────────────────────────────────────────────────
+  if (x402Enabled) {
+    if (!paymentHeader) {
+      // Return 402 with x402-compatible requirements
+      return NextResponse.json(PAYMENT_REQUIREMENTS, {
+        status:  402,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    // Verify the signed payment header via x402.org/facilitator
+    const isValid = await verifyX402Payment(paymentHeader);
+    if (!isValid) {
+      return NextResponse.json(
+        { x402Version: 1, error: "Payment verification failed" },
+        { status: 402 }
+      );
     }
   }
 
@@ -76,7 +130,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       sellAmount,
       taker,
       slippageBps: "50",
-      chainId: "8453",
+      chainId:     "8453",
     });
 
     const quoteRes = await fetch(
@@ -95,6 +149,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
 
     const quote = await quoteRes.json();
+
+    // Settle payment async after successful quote (don't block response)
+    if (x402Enabled && paymentHeader) {
+      settleX402Payment(paymentHeader).catch(console.error);
+    }
+
     return NextResponse.json({ quote });
   } catch (err) {
     console.error("agent-swap error:", err);
