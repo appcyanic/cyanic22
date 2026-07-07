@@ -112,105 +112,69 @@ export function AgentChat() {
       const { intent } = swapPreview;
       const sellAmountRaw = parseUnits(intent.sellAmountHuman, intent.sellToken.decimals).toString();
 
-      // ── x402: call /api/agent-swap, handle 402 payment flow ───
+      // ── x402: call /api/agent-swap, Hibra-style payment flow ──
       toast.loading("Requesting swap via AI Agent…", { id: "agent-swap" });
 
-      // ── Collect 0.1 USDC fee for swap execution ───────────────
-      const USDC_FEE_ADDR  = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" as const;
-      const FEE_RECIPIENT  = (process.env.NEXT_PUBLIC_FEE_RECIPIENT ?? "0x66C5EFF0B6aF1C6D89E9ca27F130791372B640e9") as `0x${string}`;
-      const FEE_AMOUNT     = parseUnits("0.1", 6);
-
-      const usdcBal = await publicClient.readContract({
-        address: USDC_FEE_ADDR, abi: erc20Abi, functionName: "balanceOf", args: [address],
-      }) as bigint;
-
-      if (usdcBal < FEE_AMOUNT) {
-        toast.error("Insufficient USDC for 0.1 USDC agent swap fee", { id: "agent-swap" });
-        setIsSwapping(false);
-        return;
-      }
-
-      toast.loading("Approve 0.1 USDC agent swap fee…", { id: "agent-swap" });
-      const feeTx = await walletClient.writeContract({
-        address: USDC_FEE_ADDR, abi: erc20Abi, functionName: "transfer",
-        args: [FEE_RECIPIENT, FEE_AMOUNT],
+      const agentSwapBody = JSON.stringify({
+        sellToken:  intent.sellToken.address,
+        buyToken:   intent.buyToken.address,
+        sellAmount: sellAmountRaw,
+        taker:      address,
       });
-      await publicClient.waitForTransactionReceipt({ hash: feeTx });
-      toast.loading("Fee collected ✓ Executing swap…", { id: "agent-swap" });
 
-      const fetchWithPayment = async (): Promise<Response> => {
-        const res = await fetch("/api/agent-swap", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            sellToken: intent.sellToken.address,
-            buyToken:  intent.buyToken.address,
-            sellAmount: sellAmountRaw,
-            taker: address,
-          }),
-        });
+      let quoteRes = await fetch("/api/agent-swap", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+        body:    agentSwapBody,
+      });
 
-        if (res.status === 402) {
-          // x402 payment required — parse the payment details
-          const paymentRequired = await res.json();
-          const paymentDetails  = paymentRequired.accepts?.[0];
+      if (quoteRes.status === 402) {
+        const paymentRequired = await quoteRes.json().catch(() => ({}));
 
-          if (!paymentDetails) throw new Error("Invalid x402 payment details");
+        try {
+          // Use x402/client — same as Hibra (works with viem wallet client)
+          const { createPaymentHeader, selectPaymentRequirements } = await import("x402/client");
 
-          const { amount, asset, payTo: recipient } = paymentDetails;
-          const USDC_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" as const;
+          const selected = selectPaymentRequirements(paymentRequired.accepts ?? []);
+          if (!selected) throw new Error("No compatible payment method");
 
-          // Check balance
-          const balance = await publicClient.readContract({
-            address: USDC_ADDRESS,
-            abi: erc20Abi,
-            functionName: "balanceOf",
-            args: [address],
-          }) as bigint;
+          toast.loading("Sign $0.10 USDC payment…", { id: "agent-swap" });
 
-          const feeAmt = BigInt(amount ?? "100000"); // 0.1 USDC = 100000 (6 decimals)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const paymentHeader = await createPaymentHeader(walletClient as any, paymentRequired.x402Version ?? 1, selected);
 
-          if (balance < feeAmt) {
-            throw new Error("Insufficient USDC balance for 0.1 USDC agent fee");
-          }
+          toast.loading("Payment signed ✓ Getting quote…", { id: "agent-swap" });
 
-          toast.loading("Approve 0.1 USDC agent fee in wallet…", { id: "agent-swap" });
-
-          // Transfer USDC fee
-          const feeTxHash = await walletClient.writeContract({
-            address: USDC_ADDRESS,
-            abi: erc20Abi,
-            functionName: "transfer",
-            args: [
-              (recipient ?? process.env.NEXT_PUBLIC_FEE_RECIPIENT ?? "0x66C5EFF0B6aF1C6D89E9ca27F130791372B640e9") as `0x${string}`,
-              feeAmt,
-            ],
+          quoteRes = await fetch("/api/agent-swap", {
+            method:  "POST",
+            headers: { "Content-Type": "application/json", "Accept": "application/json", "X-PAYMENT": paymentHeader },
+            body:    agentSwapBody,
           });
+        } catch (payErr) {
+          const payMsg = payErr instanceof Error ? payErr.message : "";
+          if (payMsg.includes("rejected") || payMsg.includes("denied")) {
+            toast.dismiss("agent-swap");
+            setIsSwapping(false);
+            return;
+          }
+          // Fallback to manual ERC-20 transfer if x402 signing fails
+          toast.loading("Approve 0.1 USDC fee…", { id: "agent-swap" });
+          const USDC_ADDR     = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" as const;
+          const FEE_RECIPIENT = (process.env.NEXT_PUBLIC_FEE_RECIPIENT ?? "0x66C5EFF0B6aF1C6D89E9ca27F130791372B640e9") as `0x${string}`;
+          const feeTx = await walletClient.writeContract({
+            address: USDC_ADDR, abi: erc20Abi, functionName: "transfer",
+            args: [FEE_RECIPIENT, parseUnits("0.1", 6)],
+          });
+          await publicClient.waitForTransactionReceipt({ hash: feeTx });
 
-          await publicClient.waitForTransactionReceipt({ hash: feeTxHash });
-
-          toast.loading("Fee paid ✓ Getting swap quote…", { id: "agent-swap" });
-
-          // Retry with payment proof header
-          return fetch("/api/agent-swap", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "X-Payment": JSON.stringify({ txHash: feeTxHash, amount: feeAmt.toString(), asset: asset ?? "USDC" }),
-            },
-            body: JSON.stringify({
-              sellToken:  intent.sellToken.address,
-              buyToken:   intent.buyToken.address,
-              sellAmount: sellAmountRaw,
-              taker:      address,
-            }),
+          quoteRes = await fetch("/api/agent-swap", {
+            method:  "POST",
+            headers: { "Content-Type": "application/json", "X-Payment-TxHash": feeTx },
+            body:    agentSwapBody,
           });
         }
+      }
 
-        return res;
-      };
-
-      const quoteRes = await fetchWithPayment();
       if (!quoteRes.ok) {
         const err = await quoteRes.json().catch(() => ({}));
         throw new Error(err.error ?? "Failed to get swap quote");
