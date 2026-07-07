@@ -115,28 +115,28 @@ export function AgentChat() {
       // ── x402: call /api/agent-swap, handle 402 payment flow ───
       toast.loading("Requesting swap via AI Agent…", { id: "agent-swap" });
 
-      // ── Collect 0.1 USDC fee before swap ──────────────────────
-      const USDC_ADDRESS  = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" as const;
-      const FEE_RECIPIENT = (process.env.NEXT_PUBLIC_FEE_RECIPIENT ?? "0x66C5EFF0B6aF1C6D89E9ca27F130791372B640e9") as `0x${string}`;
-      const FEE_AMOUNT    = parseUnits("0.1", 6);
+      // ── Collect 0.1 USDC fee for swap execution ───────────────
+      const USDC_FEE_ADDR  = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" as const;
+      const FEE_RECIPIENT  = (process.env.NEXT_PUBLIC_FEE_RECIPIENT ?? "0x66C5EFF0B6aF1C6D89E9ca27F130791372B640e9") as `0x${string}`;
+      const FEE_AMOUNT     = parseUnits("0.1", 6);
 
-      const usdcBalance = await publicClient.readContract({
-        address: USDC_ADDRESS, abi: erc20Abi, functionName: "balanceOf", args: [address],
+      const usdcBal = await publicClient.readContract({
+        address: USDC_FEE_ADDR, abi: erc20Abi, functionName: "balanceOf", args: [address],
       }) as bigint;
 
-      if (usdcBalance < FEE_AMOUNT) {
-        toast.error("Insufficient USDC for 0.1 USDC agent fee", { id: "agent-swap" });
+      if (usdcBal < FEE_AMOUNT) {
+        toast.error("Insufficient USDC for 0.1 USDC agent swap fee", { id: "agent-swap" });
         setIsSwapping(false);
         return;
       }
 
-      toast.loading("Approve 0.1 USDC agent fee…", { id: "agent-swap" });
+      toast.loading("Approve 0.1 USDC agent swap fee…", { id: "agent-swap" });
       const feeTx = await walletClient.writeContract({
-        address: USDC_ADDRESS, abi: erc20Abi, functionName: "transfer",
+        address: USDC_FEE_ADDR, abi: erc20Abi, functionName: "transfer",
         args: [FEE_RECIPIENT, FEE_AMOUNT],
       });
       await publicClient.waitForTransactionReceipt({ hash: feeTx });
-      toast.loading("Fee collected ✓ Getting swap quote…", { id: "agent-swap" });
+      toast.loading("Fee collected ✓ Executing swap…", { id: "agent-swap" });
 
       const fetchWithPayment = async (): Promise<Response> => {
         const res = await fetch("/api/agent-swap", {
@@ -319,81 +319,14 @@ export function AgentChat() {
     setSwapPreview(null);
 
     try {
-      // ── First attempt — may get 402 if x402 middleware active ─
-      let agentRes = await fetch("/api/agent", {
+      // ── Direct request — no payment for chat messages ──────────
+      const agentRes = await fetch("/api/agent", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "X-Payment-TxHash": "free" },
         body: JSON.stringify({ messages: [...messages, userMsg].map(m => ({ role: m.role, content: m.content })) }),
       });
 
-      // ── Handle x402 Payment Required ──────────────────────────
-      if (agentRes.status === 402 && walletClient && publicClient && address) {
-        const paymentReq = await agentRes.json().catch(() => ({}));
-        const accepts    = paymentReq.accepts ?? paymentReq.x402Version ? [paymentReq] : [];
-        const payOption  = accepts[0];
-
-        if (!payOption) {
-          setMessages(prev => [...prev, {
-            id: Date.now().toString(), role: "assistant",
-            content: "⚠️ Payment required but no payment details received. Please try again.",
-          }]);
-          return;
-        }
-
-        const USDC_ADDRESS  = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" as const;
-        const FEE_RECIPIENT = (payOption.payTo ?? process.env.NEXT_PUBLIC_FEE_RECIPIENT ?? "0x66C5EFF0B6aF1C6D89E9ca27F130791372B640e9") as `0x${string}`;
-        const FEE_AMOUNT    = parseUnits("0.1", 6); // 0.1 USDC
-
-        // Check USDC balance
-        const usdcBal = await publicClient.readContract({
-          address: USDC_ADDRESS, abi: erc20Abi, functionName: "balanceOf", args: [address],
-        }) as bigint;
-
-        if (usdcBal < FEE_AMOUNT) {
-          setMessages(prev => [...prev, {
-            id: Date.now().toString(), role: "assistant",
-            content: "⚠️ Insufficient USDC balance. You need at least 0.10 USDC on Base to use the AI Agent.",
-          }]);
-          return;
-        }
-
-        toast.loading("Approve 0.10 USDC agent fee…", { id: "x402-pay" });
-
-        try {
-          const feeTx = await walletClient.writeContract({
-            address: USDC_ADDRESS, abi: erc20Abi, functionName: "transfer",
-            args: [FEE_RECIPIENT, FEE_AMOUNT],
-          });
-          await publicClient.waitForTransactionReceipt({ hash: feeTx });
-          toast.success("Fee paid ✓ Processing…", { id: "x402-pay", duration: 2000 });
-        } catch (feeErr) {
-          const feeMsg = feeErr instanceof Error ? feeErr.message : "";
-          if (feeMsg.includes("rejected")) { toast.dismiss("x402-pay"); return; }
-          toast.error("Fee payment failed", { id: "x402-pay" });
-          return;
-        }
-
-        // Retry request with payment proof header
-        agentRes = await fetch("/api/agent", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Payment-TxHash": "paid", // signal to backend that fee was paid
-          },
-          body: JSON.stringify({ messages: [...messages, userMsg].map(m => ({ role: m.role, content: m.content })) }),
-        });
-      }
-
-      if (!agentRes.ok) {
-        if (agentRes.status === 402) {
-          setMessages(prev => [...prev, {
-            id: Date.now().toString(), role: "assistant",
-            content: "⚠️ Connect your wallet and ensure you have USDC on Base ($0.10 per message).",
-          }]);
-          return;
-        }
-        throw new Error("Agent error");
-      }
+      if (!agentRes.ok) throw new Error("Agent error");
 
       const reader = agentRes.body?.getReader();
       const decoder = new TextDecoder();
