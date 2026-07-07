@@ -5,8 +5,10 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Send, User, Loader2, Zap, Sparkles, ArrowRight, X, CheckCircle2, ExternalLink, AlertCircle } from "lucide-react";
 import { useAccount, useWalletClient, usePublicClient } from "wagmi";
 import { parseUnits, erc20Abi, maxUint256 } from "viem";
+import { createPaymentHeader, selectPaymentRequirements } from "x402/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { estimateVolumeUSD } from "@/lib/utils";
 import { BASE_TOKENS, getTokenBySymbol } from "@/lib/tokens";
 import { useUserPoints } from "@/hooks/useUserPoints";
 import { XP_REWARDS } from "@/types/reward";
@@ -112,7 +114,7 @@ export function AgentChat() {
       const { intent } = swapPreview;
       const sellAmountRaw = parseUnits(intent.sellAmountHuman, intent.sellToken.decimals).toString();
 
-      // ── x402: call /api/agent-swap, Hibra-style payment flow ──
+      // ── x402: call /api/agent-swap with proper x402 payment flow ──
       toast.loading("Requesting swap via AI Agent…", { id: "agent-swap" });
 
       const agentSwapBody = JSON.stringify({
@@ -122,61 +124,65 @@ export function AgentChat() {
         taker:      address,
       });
 
-      let quoteRes = await fetch("/api/agent-swap", {
+      const executeUrl = "/api/agent-swap";
+
+      // First call without payment — middleware returns 402 with x402 requirements
+      let quoteRes = await fetch(executeUrl, {
         method:  "POST",
         headers: { "Content-Type": "application/json", "Accept": "application/json" },
         body:    agentSwapBody,
       });
 
+      // ── x402 payment flow ─────────────────────────────────────────
       if (quoteRes.status === 402) {
-        const paymentRequired = await quoteRes.json().catch(() => ({}));
+        if (!walletClient) {
+          toast.error("Wallet not ready for x402 payment", { id: "agent-swap" });
+          setIsSwapping(false);
+          return;
+        }
 
-        try {
-          // Use x402/client — same as Hibra (works with viem wallet client)
-          const { createPaymentHeader, selectPaymentRequirements } = await import("x402/client");
+        const paymentRequiredBody = await quoteRes.json() as {
+          x402Version: number;
+          accepts: unknown[];
+          error?: string;
+        };
 
-          const selected = selectPaymentRequirements(paymentRequired.accepts ?? []);
-          if (!selected) throw new Error("No compatible payment method");
+        // Select the best matching payment requirement (USDC on Base)
+        const requirements = paymentRequiredBody.accepts as Parameters<typeof selectPaymentRequirements>[0];
+        const selected = selectPaymentRequirements(requirements);
+        if (!selected) {
+          toast.error("No compatible x402 payment method found", { id: "agent-swap" });
+          setIsSwapping(false);
+          return;
+        }
 
-          toast.loading("Sign $0.10 USDC payment…", { id: "agent-swap" });
+        toast.loading("Sign $0.10 USDC payment…", { id: "agent-swap" });
 
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const paymentHeader = await createPaymentHeader(walletClient as any, paymentRequired.x402Version ?? 1, selected);
+        // Build and sign the x402 payment header using the user's wallet
+        const paymentHeader = await createPaymentHeader(
+          walletClient as unknown as Parameters<typeof createPaymentHeader>[0],
+          paymentRequiredBody.x402Version,
+          selected
+        );
 
-          toast.loading("Payment signed ✓ Getting quote…", { id: "agent-swap" });
+        // Retry with the signed X-PAYMENT header
+        quoteRes = await fetch(executeUrl, {
+          method:  "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-PAYMENT": paymentHeader,
+          },
+          body: agentSwapBody,
+        });
 
-          quoteRes = await fetch("/api/agent-swap", {
-            method:  "POST",
-            headers: { "Content-Type": "application/json", "Accept": "application/json", "X-PAYMENT": paymentHeader },
-            body:    agentSwapBody,
-          });
-        } catch (payErr) {
-          const payMsg = payErr instanceof Error ? payErr.message : "";
-          if (payMsg.includes("rejected") || payMsg.includes("denied")) {
-            toast.dismiss("agent-swap");
-            setIsSwapping(false);
-            return;
-          }
-          // Fallback to manual ERC-20 transfer if x402 signing fails
-          toast.loading("Approve 0.1 USDC fee…", { id: "agent-swap" });
-          const USDC_ADDR     = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" as const;
-          const FEE_RECIPIENT = "0x66C5EFF0B6aF1C6D89E9ca27F130791372B640e9" as `0x${string}`;
-          const feeTx = await walletClient.writeContract({
-            address: USDC_ADDR, abi: erc20Abi, functionName: "transfer",
-            args: [FEE_RECIPIENT, parseUnits("0.1", 6)],
-          });
-          await publicClient.waitForTransactionReceipt({ hash: feeTx });
-
-          quoteRes = await fetch("/api/agent-swap", {
-            method:  "POST",
-            headers: { "Content-Type": "application/json", "X-Payment-TxHash": feeTx },
-            body:    agentSwapBody,
-          });
+        if (!quoteRes.ok) {
+          const err = await quoteRes.json().catch(() => ({})) as { error?: string };
+          throw new Error(err.error ?? "Payment verification failed");
         }
       }
 
       if (!quoteRes.ok) {
-        const err = await quoteRes.json().catch(() => ({}));
+        const err = await quoteRes.json().catch(() => ({})) as { error?: string };
         throw new Error(err.error ?? "Failed to get swap quote");
       }
 
@@ -253,7 +259,13 @@ export function AgentChat() {
         );
 
         // Award 250 XP for agent swap
-        await awardXP(XP_REWARDS.AGENT_SWAP, "agent");
+        const volumeUSD = estimateVolumeUSD(
+          intent.sellToken.symbol,
+          intent.buyToken.symbol,
+          intent.sellAmountHuman,
+          intent.buyAmountHuman
+        );
+        await awardXP(XP_REWARDS.AGENT_SWAP, "agent", volumeUSD);
 
         setMessages(prev => [...prev, {
           id: Date.now().toString(),
@@ -283,10 +295,10 @@ export function AgentChat() {
     setSwapPreview(null);
 
     try {
-      // ── Direct request — no payment for chat messages ──────────
+      // ── Direct request — chat messages are free ────────────────
       const agentRes = await fetch("/api/agent", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "X-Payment-TxHash": "free" },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: [...messages, userMsg].map(m => ({ role: m.role, content: m.content })) }),
       });
 
@@ -398,7 +410,10 @@ export function AgentChat() {
                   ? "bg-base-blue text-white rounded-tr-sm"
                   : "bg-bg-secondary border border-border text-text-primary rounded-tl-sm"
               )}>
-                <div className="whitespace-pre-wrap">{msg.content}</div>
+                {msg.role === "assistant"
+                  ? <MarkdownMessage content={msg.content} />
+                  : <div className="whitespace-pre-wrap">{msg.content}</div>
+                }
               </div>
               {msg.role === "user" && (
                 <div className="w-8 h-8 rounded-xl bg-bg-tertiary border border-border flex items-center justify-center flex-shrink-0 mt-1">
@@ -511,7 +526,8 @@ export function AgentChat() {
       </div>
 
       {/* ── Input bar ── */}
-      <div className="sticky bottom-0 p-4 border-t border-border bg-bg-primary/95 backdrop-blur-xl">
+      <div className="sticky bottom-0 p-4 border-t border-border bg-bg-primary/95 backdrop-blur-xl"
+           style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}>
         <form onSubmit={handleSubmit} className="flex gap-3">
           <input
             ref={inputRef}
@@ -535,4 +551,115 @@ export function AgentChat() {
       </div>
     </div>
   );
+}
+
+// ── Markdown renderer ────────────────────────────────────────────────────────
+// Supports: **bold**, *italic*, `code`, [text](url), bare https:// links,
+// bullet lists (- item), numbered lists, and blank-line paragraphs.
+function MarkdownMessage({ content }: { content: string }) {
+  // Split into paragraphs on double newline, then process each line
+  const paragraphs = content.split(/\n{2,}/);
+
+  return (
+    <div className="space-y-2 text-sm leading-relaxed">
+      {paragraphs.map((para, pi) => {
+        const lines = para.split("\n").filter(Boolean);
+
+        // Bullet list
+        if (lines.every(l => /^[-*•]\s/.test(l))) {
+          return (
+            <ul key={pi} className="space-y-0.5 pl-1">
+              {lines.map((l, li) => (
+                <li key={li} className="flex gap-2">
+                  <span className="text-base-blue mt-0.5 flex-shrink-0">·</span>
+                  <span>{renderInline(l.replace(/^[-*•]\s+/, ""))}</span>
+                </li>
+              ))}
+            </ul>
+          );
+        }
+
+        // Numbered list
+        if (lines.every(l => /^\d+\.\s/.test(l))) {
+          return (
+            <ol key={pi} className="space-y-0.5 pl-1">
+              {lines.map((l, li) => (
+                <li key={li} className="flex gap-2">
+                  <span className="text-base-blue font-mono flex-shrink-0 w-4">{li + 1}.</span>
+                  <span>{renderInline(l.replace(/^\d+\.\s+/, ""))}</span>
+                </li>
+              ))}
+            </ol>
+          );
+        }
+
+        // Regular paragraph — join lines with space (soft wrap)
+        return (
+          <p key={pi}>{renderInline(lines.join(" "))}</p>
+        );
+      })}
+    </div>
+  );
+}
+
+// Render inline markdown: **bold**, *italic*, `code`, [text](url), bare URLs
+function renderInline(text: string): React.ReactNode[] {
+  // Combined regex: markdown links, bold, italic, code, bare URLs
+  const pattern = /(\[([^\]]+)\]\((https?:\/\/[^\)]+)\))|(\*\*(.+?)\*\*)|(\*(.+?)\*)|(`([^`]+)`)|((https?:\/\/[^\s]+))/g;
+
+  const nodes: React.ReactNode[] = [];
+  let last = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(text)) !== null) {
+    // Push text before match
+    if (match.index > last) {
+      nodes.push(text.slice(last, match.index));
+    }
+
+    if (match[1]) {
+      // [text](url)
+      nodes.push(
+        <a key={match.index} href={match[3]} target="_blank" rel="noopener noreferrer"
+           className="text-base-blue hover:underline inline-flex items-center gap-0.5">
+          {match[2]}
+          <ExternalLink className="w-3 h-3 inline" />
+        </a>
+      );
+    } else if (match[4]) {
+      // **bold**
+      nodes.push(<strong key={match.index} className="font-semibold text-text-primary">{match[5]}</strong>);
+    } else if (match[6]) {
+      // *italic*
+      nodes.push(<em key={match.index} className="italic text-text-secondary">{match[7]}</em>);
+    } else if (match[8]) {
+      // `code`
+      nodes.push(
+        <code key={match.index}
+              className="px-1 py-0.5 rounded bg-bg-tertiary border border-border font-mono text-xs text-base-blue">
+          {match[9]}
+        </code>
+      );
+    } else if (match[10]) {
+      // bare https:// URL
+      const url = match[11];
+      const isBaseScan = url.includes("basescan.org");
+      nodes.push(
+        <a key={match.index} href={url} target="_blank" rel="noopener noreferrer"
+           className="text-base-blue hover:underline inline-flex items-center gap-0.5 break-all">
+          {isBaseScan ? "View on BaseScan" : url}
+          <ExternalLink className="w-3 h-3 inline flex-shrink-0" />
+        </a>
+      );
+    }
+
+    last = match.index + match[0].length;
+  }
+
+  // Remaining text
+  if (last < text.length) {
+    nodes.push(text.slice(last));
+  }
+
+  return nodes.length > 0 ? nodes : [text];
 }

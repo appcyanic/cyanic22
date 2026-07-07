@@ -185,6 +185,14 @@ html, body {
 }
 
 /* ═══════════════════════════════
+   SAFE AREA
+═══════════════════════════════ */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+  .pb-safe-4 { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+}
+
+/* ═══════════════════════════════
    KEYFRAMES
 ═══════════════════════════════ */
 @keyframes shimmer {

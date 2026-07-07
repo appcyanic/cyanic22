@@ -193,7 +193,7 @@ export function TokenChart({ sellToken, buyToken }: Props) {
                     axisLine={false} tickLine={false}
                     tick={{ fill: "var(--text-muted)", fontSize: 10 }}
                     tickFormatter={v => `$${formatPrice(v)}`}
-                    width={56}
+                    width={48}
                   />
                   <Tooltip content={<CustomTooltip />} />
                   <ReferenceLine

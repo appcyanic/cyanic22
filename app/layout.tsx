@@ -32,6 +32,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning className="dark">
       <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
@@ -43,7 +44,7 @@ export default function RootLayout({
         <Providers>
           <BlockchainBackground />
           <Navbar />
-          <main className="flex-1 pt-16 pb-16 md:pb-0" style={{ position: "relative", zIndex: 1 }}>
+          <main className="flex-1 pt-16 pb-16 md:pb-0 overscroll-none" style={{ position: "relative", zIndex: 1 }}>
             {children}
           </main>
           <MobileNav />

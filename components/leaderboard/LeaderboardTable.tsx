@@ -79,7 +79,7 @@ export function LeaderboardTable({ data, currentWallet, isLoading }: Leaderboard
             <div
               key={entry.wallet_address}
               className={cn(
-                "glass-card px-3 py-1.5 flex items-center gap-2.5 transition-all",
+                "glass-card px-3 py-2 flex items-center gap-2 transition-all",
                 isMe && "border-base-blue/40 bg-base-blue/5"
               )}
             >
@@ -89,8 +89,8 @@ export function LeaderboardTable({ data, currentWallet, isLoading }: Leaderboard
               </div>
 
               {/* Wallet + level */}
-              <div className="flex-1 min-w-0 flex items-center gap-2">
-                <span className="font-semibold font-mono text-sm text-text-primary truncate">
+              <div className="flex-1 min-w-0 flex items-center gap-1.5 overflow-hidden">
+                <span className="font-semibold font-mono text-xs sm:text-sm text-text-primary truncate">
                   {entry.ens_name || shortenAddress(entry.wallet_address)}
                 </span>
                 {isMe && (
@@ -109,8 +109,8 @@ export function LeaderboardTable({ data, currentWallet, isLoading }: Leaderboard
               </div>
 
               {/* XP */}
-              <div className="text-right flex-shrink-0 min-w-[48px]">
-                <span className="text-sm font-bold gradient-text font-mono">
+              <div className="text-right flex-shrink-0">
+                <span className="text-xs sm:text-sm font-bold gradient-text font-mono">
                   {formatXP(entry.total_xp)}
                 </span>
               </div>

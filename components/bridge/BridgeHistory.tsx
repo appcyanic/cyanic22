@@ -92,19 +92,20 @@ export function BridgeHistory({ onClose }: { onClose: () => void }) {
                   {record.status === "failed"  && <XCircle      className="w-4 h-4 text-error" />}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-xs font-semibold text-text-primary">
+                  <div className="text-xs font-semibold text-text-primary truncate">
                     {record.fromToken} → {record.toToken}
-                    <span className="font-normal text-text-muted ml-2">
+                    <span className="font-normal text-text-muted ml-2 hidden sm:inline">
                       {from?.icon}{from?.name} → {to?.icon}{to?.name}
+                    </span>
+                    <span className="font-normal text-text-muted ml-2 sm:hidden">
+                      {from?.icon} → {to?.icon}
                     </span>
                   </div>
                   <div className="text-xs text-text-muted flex items-center gap-1 mt-0.5">
-                    <Clock className="w-2.5 h-2.5" />
-                    {timeAgo(record.timestamp)}
-                    <span className="mx-1">·</span>
-                    {record.bridge}
+                    <Clock className="w-2.5 h-2.5 flex-shrink-0" />
+                    <span className="truncate">{timeAgo(record.timestamp)} · {record.bridge}</span>
                     {record.status === "pending" && (
-                      <span className="text-warning ml-1">· still processing</span>
+                      <span className="text-warning ml-1 flex-shrink-0">· processing</span>
                     )}
                   </div>
                 </div>

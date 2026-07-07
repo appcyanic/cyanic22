@@ -8,7 +8,7 @@ import { motion } from "framer-motion";
 import { ConnectButton } from "@/components/ui/ConnectButton";
 import { NetworkBadge }  from "@/components/ui/NetworkBadge";
 import { cn } from "@/lib/utils";
-import { Zap, Sun, Moon } from "lucide-react";
+import { Sun, Moon } from "lucide-react";
 
 const NAV_LINKS = [
   { href: "/swap",        label: "Swap" },

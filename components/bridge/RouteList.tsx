@@ -49,7 +49,7 @@ export function RouteList({ routes, selected, onSelect }: RouteListProps) {
       </div>
 
       {/* Scrollable list */}
-      <div className="space-y-1.5 overflow-y-auto" style={{ maxHeight: "196px" }}>
+      <div className="space-y-1.5 overflow-y-auto" style={{ maxHeight: "min(196px, 40dvh)" }}>
         {routes.map((route, i) => {
           const tool       = route.steps[0]?.tool ?? "unknown";
           const info       = getBridgeInfo(tool);

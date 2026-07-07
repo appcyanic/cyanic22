@@ -171,13 +171,46 @@ export default function LeaderboardPage() {
       </motion.div>
 
       {/* Main grid: table + rewards panel */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_260px] gap-6 items-start mb-8">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_260px] gap-5 items-start mb-6">
+
+        {/* ── Right: Rewards panel — shows FIRST on mobile ── */}
+        <div className="space-y-3 lg:hidden">
+          {isConnected ? (
+            <div className="glass-card p-4">
+              <ProgressBar level={level} xp={xp} progress={progress} xpToNext={xpToNext} className="!p-0 !border-0 !shadow-none !bg-transparent" />
+              <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-border">
+                {[
+                  { label: "Streak",  value: `${userPoints?.streak_days ?? 0}d`,                         icon: <Flame  className="w-3 h-3 text-warning" /> },
+                  { label: "Swaps",   value: userPoints?.swap_count ?? 0,                                 icon: <Zap    className="w-3 h-3 text-base-blue" /> },
+                  { label: "Volume",  value: `$${(userPoints?.total_volume_usd ?? 0).toLocaleString()}`,  icon: <Trophy className="w-3 h-3 text-success" /> },
+                ].map(s => (
+                  <div key={s.label} className="flex items-center gap-1.5 p-1.5 rounded-lg bg-bg-tertiary">
+                    {s.icon}
+                    <div>
+                      <div className="text-xs font-bold text-text-primary">{s.value}</div>
+                      <div className="text-xs text-text-muted">{s.label}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="glass-card p-4 flex items-center gap-3">
+              <Trophy className="w-7 h-7 text-base-blue flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-text-primary">Track your rewards</p>
+                <p className="text-xs text-text-muted">Connect to see XP, level and mint NFTs</p>
+              </div>
+              <ConnectButton size="sm" />
+            </div>
+          )}
+        </div>
 
         {/* ── Left: Leaderboard table ── */}
         <div className="min-w-0">
           <LeaderboardTable data={leaderboard} currentWallet={address} isLoading={isLoading} />
 
-          {/* Sticky "You" row — stays above mobile nav */}
+          {/* Sticky "You" row */}
           {address && userEntry && (
             <div className="sticky bottom-20 md:bottom-4 mt-3 z-10">
               <div className="glass-card px-3 py-2 flex items-center gap-2.5 backdrop-blur-xl"
@@ -197,8 +230,8 @@ export default function LeaderboardPage() {
           )}
         </div>
 
-        {/* ── Right: Rewards panel ── */}
-        <div className="space-y-3">
+        {/* ── Right: Rewards panel — desktop only ── */}
+        <div className="space-y-3 hidden lg:block">
           {isConnected ? (
             <>
               {/* XP Progress + Stats combined */}
@@ -288,28 +321,25 @@ export default function LeaderboardPage() {
       </div>
 
       {/* How to Earn XP */}
-      <div className="border-t border-border pt-6">
-        <div className="flex items-center gap-2 mb-4">
+      <div className="border-t border-border pt-5">
+        <div className="flex items-center gap-2 mb-3">
           <Info className="w-4 h-4 text-base-blue" />
           <h2 className="font-bold text-sm text-text-primary">How to Earn XP</h2>
         </div>
-        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
           {XP_SOURCES.map(s => (
             <div key={s.label}
-                 className="glass-card p-3 flex flex-col items-center text-center gap-2"
+                 className="glass-card p-3 flex items-center gap-3"
                  style={{ borderColor: `${s.color}20` }}>
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg"
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center text-base flex-shrink-0"
                    style={{ background: `${s.color}15`, border: `1px solid ${s.color}20` }}>
                 {s.icon}
               </div>
-              <div>
-                <div className="text-xs font-semibold text-text-primary leading-tight">{s.label}</div>
-                <div className="text-xs text-text-muted mt-0.5 leading-tight">{s.desc}</div>
+              <div className="min-w-0">
+                <div className="text-xs font-semibold text-text-primary leading-tight truncate">{s.label}</div>
+                <div className="text-xs text-text-muted leading-tight truncate">{s.desc}</div>
+                <span className="text-xs font-bold font-mono" style={{ color: s.color }}>+{s.xp} XP</span>
               </div>
-              <span className="text-xs font-bold font-mono px-2 py-0.5 rounded-full mt-auto"
-                    style={{ color: s.color, background: `${s.color}15`, border: `1px solid ${s.color}20` }}>
-                +{s.xp}
-              </span>
             </div>
           ))}
         </div>

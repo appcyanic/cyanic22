@@ -3,8 +3,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell,
+  PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
 } from "recharts";
 import { BarChart2, Users, TrendingUp, Zap, RefreshCw } from "lucide-react";
 import { supabase } from "@/lib/supabase";
@@ -85,19 +84,19 @@ export default function StatsPage() {
   ];
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10">
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
       {/* Header */}
-      <div className="text-center mb-8">
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-base-blue/30 bg-base-blue/10 mb-4">
+      <div className="text-center mb-6">
+        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-base-blue/30 bg-base-blue/10 mb-3">
           <BarChart2 className="w-4 h-4 text-base-blue" />
           <span className="text-sm font-medium text-base-blue">Analytics</span>
         </div>
-        <h1 className="text-3xl font-bold text-text-primary mb-2">Protocol Stats</h1>
-        <p className="text-text-secondary text-sm">Real-time trading statistics for Cyanic on Base</p>
+        <h1 className="text-2xl font-bold text-text-primary mb-1">Protocol Stats</h1>
+        <p className="text-text-secondary text-sm">Real-time statistics for Cyanic on Base</p>
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
         {statCards.map((card, i) => (
           <motion.div
             key={card.label}
@@ -121,7 +120,7 @@ export default function StatsPage() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-5">
         {/* XP Distribution */}
         <motion.div
           initial={{ opacity: 0, y: 12 }}
@@ -179,13 +178,13 @@ export default function StatsPage() {
           ) : (
             <div className="space-y-2">
               {stats.topTraders.map((trader, i) => (
-                <div key={trader.wallet_address} className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border">
-                  <span className="text-sm font-bold text-base-blue w-6 text-center">#{i + 1}</span>
+                <div key={trader.wallet_address} className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border">
+                  <span className="text-sm font-bold text-base-blue w-6 text-center flex-shrink-0">#{i + 1}</span>
                   <span className="flex-1 font-mono text-xs text-text-primary truncate">
                     {trader.wallet_address.slice(0, 6)}…{trader.wallet_address.slice(-4)}
                   </span>
-                  <span className="text-xs text-text-muted">{trader.swap_count} swaps</span>
-                  <span className="text-xs font-bold text-success font-mono">{trader.total_xp.toLocaleString()} XP</span>
+                  <span className="text-xs text-text-muted flex-shrink-0 hidden sm:block">{trader.swap_count} swaps</span>
+                  <span className="text-xs font-bold text-success font-mono flex-shrink-0">{trader.total_xp.toLocaleString()} XP</span>
                 </div>
               ))}
             </div>
@@ -193,32 +192,6 @@ export default function StatsPage() {
         </motion.div>
       </div>
 
-      {/* Swaps per user bar chart */}
-      {stats && stats.topTraders.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="glass-card p-5"
-        >
-          <h3 className="font-semibold text-text-primary mb-4">Top Traders by Swap Count</h3>
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={stats.topTraders.map(t => ({
-              name: `${t.wallet_address.slice(0, 6)}…`,
-              swaps: t.swap_count,
-              xp: t.total_xp,
-            }))}>
-              <XAxis dataKey="name" tick={{ fill: "var(--text-muted)", fontSize: 11 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: "var(--text-muted)", fontSize: 11 }} axisLine={false} tickLine={false} />
-              <Tooltip
-                contentStyle={{ background: "var(--bg-secondary)", border: "1px solid var(--border)", borderRadius: 8 }}
-                labelStyle={{ color: "var(--text-primary)" }}
-              />
-              <Bar dataKey="swaps" fill="#0052FF" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </motion.div>
-      )}
     </div>
   );
 }

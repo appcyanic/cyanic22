@@ -7,7 +7,7 @@ import { BridgeCard } from "@/components/bridge/BridgeCard";
 export default function BridgePage() {
   return (
     <div
-      className="px-3 sm:px-6 lg:px-8 py-6 sm:py-8"
+      className="px-3 sm:px-6 lg:px-8 py-4 sm:py-8"
       style={{ position: "relative", zIndex: 1, minHeight: "calc(100dvh - 4rem)" }}
     >
       <div className="max-w-lg mx-auto w-full">
@@ -41,13 +41,14 @@ export default function BridgePage() {
         {/* Info strip */}
         <div className="mt-4 grid grid-cols-3 gap-2 text-center">
           {[
-            { emoji: "🔒", label: "Finite Approvals" },
-            { emoji: "⚡", label: "30-90s via Across" },
-            { emoji: "🌉", label: "32 Bridges" },
+            { emoji: "🔒", label: "Secure Routes",     sub: "Audited bridges only" },
+            { emoji: "⚡", label: "Fast Transfers",     sub: "~30–90s via Across" },
+            { emoji: "🌉", label: "32+ Bridges",        sub: "Best rate selected" },
           ].map(item => (
-            <div key={item.label} className="glass-card py-2.5 px-2">
-              <div className="text-base mb-1">{item.emoji}</div>
-              <div className="text-xs text-text-muted font-medium">{item.label}</div>
+            <div key={item.label} className="glass-card py-3 px-2">
+              <div className="text-xl mb-1">{item.emoji}</div>
+              <div className="text-xs font-semibold text-text-primary">{item.label}</div>
+              <div className="text-xs text-text-muted mt-0.5">{item.sub}</div>
             </div>
           ))}
         </div>

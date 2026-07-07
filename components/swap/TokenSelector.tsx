@@ -133,7 +133,7 @@ export function TokenSelector({
 
       <AnimatePresence>
         {isOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4">
             {/* Backdrop */}
             <motion.div
               initial={{ opacity: 0 }}
@@ -143,13 +143,15 @@ export function TokenSelector({
               onClick={() => setIsOpen(false)}
             />
 
-            {/* Modal */}
+            {/* Modal — bottom sheet on mobile, centered on desktop */}
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              transition={{ type: "spring", duration: 0.3 }}
-              className="relative w-full max-w-md glass-card overflow-hidden flex flex-col max-h-[90vh]"
+              initial={{ opacity: 0, y: 40 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 40 }}
+              transition={{ type: "spring", duration: 0.35, bounce: 0.1 }}
+              className="relative w-full max-w-md glass-card overflow-hidden flex flex-col
+                         rounded-t-2xl sm:rounded-2xl"
+              style={{ maxHeight: "90dvh" }}
             >
               {/* Header */}
               <div className="flex items-center justify-between p-4 border-b border-border">
@@ -203,7 +205,8 @@ export function TokenSelector({
               )}
 
               {/* Token list */}
-              <div className="overflow-y-auto flex-1 min-h-0" style={{ maxHeight: "40vh" }}>
+              <div className="overflow-y-auto flex-1 min-h-0 pb-safe"
+                   style={{ maxHeight: "45dvh" }}>
                 {filtered.length === 0 ? (
                   <div className="p-8 text-center text-text-muted text-sm">
                     No tokens found

@@ -75,7 +75,7 @@ export function ChainSelector({ value, onChange, exclude = [], onClose }: ChainS
       </div>
 
       {/* Chain list */}
-      <div className="py-1.5 overflow-y-auto" style={{ maxHeight: "60vh" }}>
+      <div className="py-1.5 overflow-y-auto" style={{ maxHeight: "60dvh" }}>
         {options.map(chain => {
           const isActive = chain.id === value;
           return (

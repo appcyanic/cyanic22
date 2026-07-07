@@ -18,7 +18,7 @@ import { useUserPoints }    from "@/hooks/useUserPoints";
 import { BASE_TOKENS }      from "@/lib/tokens";
 import { calculatePriceImpact } from "@/lib/0x";
 import { calculateSwapXP }      from "@/lib/points";
-import { formatUSD }            from "@/lib/utils";
+import { formatUSD, estimateVolumeUSD } from "@/lib/utils";
 import type { Token } from "@/types/token";
 
 // Permit2 contract address (same on all EVM chains)
@@ -231,7 +231,12 @@ export function SwapCard({ onTokensChange }: SwapCardProps) {
         );
         const xpEarned = calculateSwapXP((userPoints?.swap_count ?? 0) === 0);
         if (xpEarned > 0) {
-          const volumeUSD = buyUSD > 0 ? buyUSD : sellUSD;
+          const volumeUSD = estimateVolumeUSD(
+            sellToken?.symbol ?? "",
+            buyToken?.symbol  ?? "",
+            sellAmount,
+            buyAmount ?? "0"
+          );
           const result = await awardXP(xpEarned, "swap", volumeUSD);
           toast.success(`+${xpEarned} XP earned!`, { icon: "🔵", duration: 3000 });
           // Show streak bonus if earned
@@ -293,8 +298,8 @@ export function SwapCard({ onTokensChange }: SwapCardProps) {
         <div className="flex items-center justify-between mb-1.5">
           <span className="text-xs text-text-muted font-medium">You Pay</span>
           {isConnected && (
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs text-text-muted font-mono">
+            <div className="flex items-center gap-1 flex-wrap justify-end">
+              <span className="text-xs text-text-muted font-mono mr-1">
                 {sellBalanceFormatted} {sellToken?.symbol}
               </span>
               {[25, 50, 75, 100].map(pct => (
@@ -305,7 +310,7 @@ export function SwapCard({ onTokensChange }: SwapCardProps) {
                     const val = parseFloat(formatUnits(sellBalanceRaw, sellToken.decimals)) * pct / 100;
                     setSellAmount(val.toFixed(6));
                   }}
-                  className="text-xs text-base-blue hover:text-base-blue-light font-semibold px-1.5 py-1 rounded-lg min-h-[28px] hover:bg-base-blue/10 transition-all"
+                  className="text-xs text-base-blue font-semibold px-2 py-1 rounded-lg min-h-[28px] min-w-[32px] hover:bg-base-blue/10 transition-all"
                 >
                   {pct === 100 ? "MAX" : `${pct}%`}
                 </button>
@@ -313,12 +318,11 @@ export function SwapCard({ onTokensChange }: SwapCardProps) {
             </div>
           )}
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <input
             type="number" placeholder="0" min="0"
             value={sellAmount}
             onChange={(e) => {
-                // Normalize: replace comma with dot for locales that use comma as decimal
                 const val = e.target.value.replace(",", ".");
                 setSellAmount(val);
               }}

@@ -24,10 +24,15 @@ export default function SwapPage() {
   const leftRef  = useRef<HTMLDivElement>(null);
   const rightRef = useRef<HTMLDivElement>(null);
 
-  // Sync chart height to left card height
+  // Sync chart height to left card height — desktop only
   useEffect(() => {
     if (!leftRef.current || !rightRef.current) return;
     const sync = () => {
+      // Only sync on desktop (lg breakpoint = 1024px)
+      if (window.innerWidth < 1024) {
+        rightRef.current!.style.height = "";
+        return;
+      }
       const h = leftRef.current?.offsetHeight;
       if (h && rightRef.current) {
         rightRef.current.style.height = `${h}px`;
@@ -35,27 +40,18 @@ export default function SwapPage() {
     };
     sync();
     const ro = new ResizeObserver(sync);
+    window.addEventListener("resize", sync);
     if (leftRef.current) ro.observe(leftRef.current);
-    return () => ro.disconnect();
+    return () => { ro.disconnect(); window.removeEventListener("resize", sync); };
   }, [activeTab]);
 
   return (
     <div
-      className="px-3 sm:px-6 lg:px-8 py-6 sm:py-8"
+      className="px-3 sm:px-6 lg:px-8 py-4 sm:py-6"
       style={{ position: "relative", zIndex: 1, minHeight: "calc(100dvh - 4rem)" }}
     >
       {/* Main layout */}
       <div className="relative z-10 max-w-6xl mx-auto">
-
-        {/* Header */}
-        <div className="text-center mb-6">
-          <h1 className="text-2xl sm:text-3xl font-bold text-text-primary mb-1">
-            Best prices, <span className="gradient-text">always.</span>
-          </h1>
-          <p className="text-text-secondary text-xs sm:text-sm">
-            Aggregating Uniswap V3, Aerodrome, SushiSwap and more on Base.
-          </p>
-        </div>
 
         {/* Two-column grid — equal proportions, same height */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
@@ -91,7 +87,7 @@ export default function SwapPage() {
               })}
             </div>
 
-            <p className="text-text-muted text-xs mb-3 text-center">
+            <p className="text-text-muted text-xs mb-3 text-center hidden">
               {activeTab === "swap" ? "Best price across DEXs" : "Auto-execute at target price"}
             </p>
 
@@ -121,6 +117,7 @@ export default function SwapPage() {
             transition={{ duration: 0.25 }}
             className="w-full overflow-hidden"
             ref={rightRef}
+            style={{ minHeight: 260 }}
           >
             <TokenChart sellToken={sellToken} buyToken={buyToken} />
           </motion.div>

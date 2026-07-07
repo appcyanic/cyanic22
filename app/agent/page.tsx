@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 
 export default function AgentPage() {
   return (
-    <div className="h-[calc(100dvh-4rem)] flex flex-col overflow-hidden">
+    <div className="h-[calc(100dvh-4rem)] flex flex-col overflow-hidden overscroll-none">
       {/* Background */}
       <div
         className="fixed top-1/3 right-1/4 w-[400px] h-[400px] pointer-events-none"

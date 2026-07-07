@@ -242,8 +242,8 @@ export function LimitOrderCard() {
             <div className="rounded-xl border border-border bg-bg-tertiary p-3">
               <div className="flex items-center justify-between mb-1.5">
                 <span className="text-xs text-text-muted font-medium">You Sell</span>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs text-text-muted font-mono">
+                <div className="flex items-center gap-1 flex-wrap justify-end">
+                  <span className="text-xs text-text-muted font-mono mr-1">
                     {sellBalanceFormatted} {sellToken?.symbol}
                   </span>
                   {[25, 50, 75, 100].map(pct => (
@@ -254,7 +254,7 @@ export function LimitOrderCard() {
                         const val = parseFloat(formatUnits(sellBalanceRaw, sellToken.decimals)) * pct / 100;
                         setSellAmount(val.toFixed(6));
                       }}
-                      className="text-xs text-base-blue hover:text-base-blue-light font-semibold px-1.5 py-1 rounded-lg min-h-[28px] hover:bg-base-blue/10 transition-all"
+                      className="text-xs text-base-blue font-semibold px-2 py-1 rounded-lg min-h-[28px] min-w-[32px] hover:bg-base-blue/10 transition-all"
                     >
                       {pct === 100 ? "MAX" : `${pct}%`}
                     </button>

@@ -91,28 +91,8 @@ Response rules:
 - Use clear formatting with bullet points when listing multiple items`;
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
-  // Payment check: require 0.10 USDC fee (collected by frontend before calling this)
-  // Frontend sends X-Payment-TxHash header after USDC transfer
-  const paymentTxHash = req.headers.get("X-Payment-TxHash");
-  if (!paymentTxHash && process.env.NODE_ENV === "production") {
-    // Return x402-compatible 402 response
-    const payTo = process.env.X402_PAY_TO_ADDRESS || "0x0000000000000000000000000000000000000000";
-    return NextResponse.json(
-      {
-        x402Version: 1,
-        error: "Payment Required",
-        accepts: [{
-          scheme:  "exact",
-          network: process.env.X402_NETWORK || "base",
-          price:   "$0.10",
-          payTo,
-          asset:   "USDC",
-          description: "Cyanic AI Agent — $0.10 USDC per message",
-        }],
-      },
-      { status: 402 }
-    );
-  }
+  // Chat messages are free — only swap execution requires payment.
+  // The X-Payment-TxHash header is accepted but not enforced here.
 
   const xff = req.headers.get("x-forwarded-for");
   const ip  = xff ? xff.split(",")[0].trim() : "unknown";

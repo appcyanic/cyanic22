@@ -29,11 +29,12 @@ export function Footer() {
             <p className="text-text-muted text-xs">
               Built on{" "}
               <a href="https://base.org" target="_blank" rel="noopener noreferrer"
-                 className="text-base-blue hover:underline">Base</a>
+                 className="text-base-blue hover:underline">Base</a>{" "}
+              · Powered by{" "}
+              <a href="https://0x.org" target="_blank" rel="noopener noreferrer"
+                 className="text-base-blue hover:underline">0x Protocol</a>
             </p>
-            <p className="text-text-muted text-xs">
-              Not financial advice. Always DYOR.
-            </p>
+            <p className="text-text-muted text-xs opacity-60">Not financial advice · Always DYOR</p>
           </div>
 
         </div>
